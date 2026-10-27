@@ -1,0 +1,29 @@
+{
+  "release": "0.5.0",
+  "provider": "Oxylabs Web Scraper API (Classic)",
+  "endpoint": "https://realtime.oxylabs.io/v1/queries",
+  "selected_store": "3891",
+  "selected_zip": "60085",
+  "pickup_required": "PICKUP",
+  "request_cap_total_including_retries": 1,
+  "retry_cap_per_job": 0,
+  "deadline_seconds": 90,
+  "body_cap_bytes": 2000000,
+  "render_requested": false,
+  "paid_execution": false,
+  "requests_sent": 0,
+  "jobs_planned": [
+    {
+      "source": "walmart",
+      "url": "https://www.walmart.com/cp/food/976759"
+    }
+  ],
+  "results": [],
+  "genuine_products_verified": 0,
+  "source_shape_verified_records": 0,
+  "azure_execution": false,
+  "buyer_acceptance": false,
+  "started_utc": "2026-10-27T03:29:20+00:00",
+  "status": "DRY_RUN_NO_NETWORK_NO_COST",
+  "note": "No auth credentials read, no network requests sent; payloads for client approval only."
+}

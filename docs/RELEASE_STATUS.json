@@ -1,0 +1,14 @@
+{
+  "release": "0.5.0",
+  "build_date": "2026-10-27",
+  "store_id": "3891",
+  "store_address": "3900 Fountain Square Pl, Waukegan, IL 60085",
+  "fulfillment_requested": "PICKUP",
+  "source_corrections": "implemented offline",
+  "genuine_products_verified": 0,
+  "classic_oxylabs_paid_requests": 0,
+  "azure_jobs_executed": 0,
+  "observed_live_recovery_tests": 0,
+  "buyer_acceptance": "NOT_CERTIFIED",
+  "scheduled_jobs_activated": false
+}

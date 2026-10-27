@@ -1,0 +1,28 @@
+WALMART AZURE SCRAPER v0.5.0 — CLIENT REVIEW, 27 OCTOBER 2026
+
+This is a review candidate, NOT a verified 500-genuine-product Walmart crawl and
+NOT an Azure production deployment. No Classic Oxylabs paid request was executed.
+
+Read CLIENT_HANDOFF_README.md first. From PowerShell in the extracted directory:
+
+  py -3.12 -m venv .venv
+  .\.venv\Scripts\Activate.ps1
+  python -m pip install -e ".[test]"
+  python -m walmart_azure preflight
+  python -m pytest -q
+
+Smallest no-credential, zero-network Classic Oxylabs route review:
+
+  python -m walmart_azure oxylabs-probe --store 3891 --max-requests 1 --max-retries 0 --max-seconds 90 --output output\diagnostics\classic-review.json
+
+The dry-run writes the exact POST request body (source=walmart, Food URL)
+without sending anything or using credits. Do NOT add --execute-billable
+--billing-approved unless the buyer explicitly authorizes paid execution.
+
+Full source issue/fix matrix: docs/V050_ISSUE_TO_FIX_AND_TESTS.md
+Provider API payload, costs and stop conditions: docs/OXYLABS_CLASSIC_PLAN.md
+Actual local tests: docs/offline_test_v050_20261027.txt
+Source file hashes: SHA256SUMS.txt
+
+Confirmed demo context: Waukegan #3891, 3900 Fountain Square Pl,
+Waukegan, IL 60085, PICKUP. Store/PICKUP prices are NOT live-verified.

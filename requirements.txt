@@ -1,0 +1,8 @@
+# Direct dependency contract; see pyproject.toml for authoritative version ranges.
+# Transitive dependencies are not fully locked.
+playwright==1.56.0
+beautifulsoup4>=4.12,<5
+PyYAML>=6,<7
+azure-storage-blob>=12.20,<13
+azure-identity>=1.17,<2
+requests>=2.31,<3

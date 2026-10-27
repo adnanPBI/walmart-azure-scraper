@@ -1,0 +1,105 @@
+name: v0.5.0 offline quality gates
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-tests:
+    name: Offline Python ${{ matrix.python-version }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            python-version: '3.11'
+          - os: ubuntu-24.04
+            python-version: '3.12'
+          - os: windows-2022
+            python-version: '3.12'
+    env:
+      # CI must not depend on or read billable provider credentials.
+      OXY_WSA_USERNAME: ''
+      OXY_WSA_PASSWORD: ''
+      AZURE_STORAGE_CONNECTION_STRING: ''
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install development dependencies
+        run: python -m pip install --upgrade pip wheel build && python -m pip install -e '.[test]'
+      - name: Compile, inspect, and preflight (no network)
+        shell: bash
+        run: |
+          python -m compileall -q walmart_azure
+          python -m walmart_azure --version
+          python -m walmart_azure inspect-categories
+          cp config/stores.example.yaml config/stores.yaml
+          python -m walmart_azure preflight
+      - name: Install isolated Chromium for synthetic fixture (Ubuntu only)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python -m playwright install --with-deps chromium
+          mkdir -p "$HOME/bin"
+          PLAYWRIGHT_CHROMIUM=$(python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()')
+          test -x "$PLAYWRIGHT_CHROMIUM"
+          ln -sf "$PLAYWRIGHT_CHROMIUM" "$HOME/bin/chromium"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+          command -v "$HOME/bin/chromium"
+      - name: Offline regression and synthetic fixture
+        shell: bash
+        run: |
+          mkdir -p test-results
+          python -m pytest -q -rA --junitxml=test-results/pytest.xml | tee test-results/pytest.log
+      - name: Assert Chromium test really ran (Ubuntu only)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root=ET.parse('test-results/pytest.xml').getroot()
+          case=[n for n in root.iter('testcase') if n.attrib.get('name')=='test_full_real_playwright_workflow_over_offline_fixture']
+          assert len(case)==1, 'Required synthetic Chromium fixture not found in test report'
+          assert not any(c.tag in ('skipped','failure','error') for c in case[0]), 'Chromium fixture did not pass'
+          print('Synthetic Chromium fixture actually executed: PASS')
+          PY
+      - name: Offline Classic Oxylabs no-request dry run
+        shell: bash
+        run: |
+          mkdir -p test-results
+          python -m walmart_azure oxylabs-probe --store 3891 --max-requests 1 --max-retries 0 --max-seconds 90 --output test-results/oxylabs-dry-run.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path=Path('test-results/oxylabs-dry-run.json')
+          assert path.exists(), 'No dry-run receipt'
+          data=json.loads(path.read_text())
+          print('Dry-run receipt created; no paid execution flags supplied')
+          PY
+      - name: Build source distribution and wheel
+        shell: bash
+        run: python -m build --sdist --wheel --outdir dist
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-evidence-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: |
+            test-results/
+            dist/
+          retention-days: 14
+          if-no-files-found: warn

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "walmart-azure-scraper"
+version = "0.5.0"
+description = "Fail-closed Walmart local pickup catalog scraper with Azure Container Apps Jobs and Blob checkpoints"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{name = "Scraper Engineering"}]
+dependencies = [
+ "playwright==1.56.0", "beautifulsoup4>=4.12,<5", "PyYAML>=6,<7",
+ "requests>=2.31,<3", "azure-storage-blob>=12.20,<13", "azure-identity>=1.17,<2"
+]
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+[project.scripts]
+walmart-crawl = "walmart_azure.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["walmart_azure*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

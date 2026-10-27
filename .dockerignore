@@ -1,0 +1,25 @@
+.git
+.venv
+__pycache__
+.pytest_cache
+output
+*.zip
+*.log
+.env
+*storage_state*.json
+
+secrets/
+**/.azure/
+*.pem
+*.key
+
+# Prevent private local retailer sessions / client evidence from reaching ACR build
+config/stores.yaml
+config/*.json
+config/**/*.json
+docs/
+build/
+dist/
+tests/
+*.whl
+*.egg-info/

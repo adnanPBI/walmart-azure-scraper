@@ -1,0 +1,40 @@
+{
+  "status": "OFFLINE_SOURCE_SHAPE_REVIEW_ONLY",
+  "source_input_sha256": "ae8ec8ea104f3fb7d351926515439ab0cf144146aee2c4ebabe89e1dee767b50",
+  "store_expected": "3891",
+  "pickup_required": "PICKUP",
+  "results": [
+    {
+      "source_url": "https://www.walmart.com/cp/food/976759",
+      "job_id": "SYNTHETIC-NO-REAL-JOB",
+      "source_fields": {
+        "store_expected": "3891",
+        "pickup_required": "PICKUP",
+        "store_verified": true,
+        "pickup_verified": true,
+        "first_party_verified": true,
+        "price_verified": true,
+        "ppm_direct": "$0.42/fl oz",
+        "offer_description": {
+          "volume_deals_description": "2 for $5; Limit 1 offer per household; Valid through 10/31",
+          "volume_deals_price": "5.00",
+          "digital_deals_description": "Save $2 each with Digital Coupon; Clipping required",
+          "digital_deals_price": ""
+        },
+        "verification_status": "SOURCE_SHAPE_VERIFIED_NEEDS_HUMAN_COMPARISON",
+        "buyer_acceptance": false,
+        "original_retailer_html_available": true,
+        "store_proven_in_page": "",
+        "listing_parse_status": "ParseError",
+        "store_proven_in_product": "product.location.storeIds=['3891']",
+        "observed_price": "5.00",
+        "product_id": "1234567890"
+      }
+    }
+  ],
+  "network_requests": 0,
+  "paid_execution": false,
+  "genuine_products_verified": 0,
+  "buyer_acceptance": false,
+  "note": "Input may be genuine or synthetic. Independently authenticate job IDs and compare live prices before acceptance."
+}

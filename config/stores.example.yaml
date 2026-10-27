@@ -1,0 +1,24 @@
+# BUYER-PROVIDED Waukegan STORE EXAMPLE -- public metadata, NOT LIVE VERIFIED.
+# Chosen consistently for the first bounded diagnostic. No credentials here.
+stores:
+  - id: "3891"
+    zipcode: "60085"
+    name: "Walmart Supercenter #3891"
+    address: "3900 Fountain Square Pl"
+    city: "Waukegan"
+    state: "IL"
+    canary_item_ids: []
+limits:
+  min_total_records: 500
+  min_category_records: 1
+  min_total_vs_last_good: 0.70
+  min_category_vs_last_good: 0.50
+  max_pages_per_category: 0
+  max_detail_fail_fraction: 0.0
+  max_scroll_rounds: 28
+  detail_mode: all
+  page_retries: 2
+  max_empty_pages: 0
+  required_fulfillment: PICKUP
+  require_stable_store_proof: true
+  require_explicit_local_offer: true

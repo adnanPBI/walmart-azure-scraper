@@ -1,0 +1,11 @@
+{
+  "_WARNING": "100% SYNTHETIC MOCK - NO REAL SCRAPING, NOT BUYER ACCEPTANCE",
+  "results": [
+    {
+      "status_code": 200,
+      "url": "https://www.walmart.com/cp/food/976759",
+      "job_id": "SYNTHETIC-NO-REAL-JOB",
+      "content": "<html><body><script id=\"__NEXT_DATA__\" type=\"application/json\">{\"props\": {\"pageProps\": {\"initialData\": {\"product\": {\"usItemId\": \"1234567890\", \"name\": \"SYNTHETIC DO NOT SUBMIT Soda 12 pack of 12 fl oz cans\", \"canonicalUrl\": \"/ip/SYNTHETIC-EXAMPLE/1234567890\", \"sellerName\": \"Walmart.com\", \"location\": {\"storeIds\": [\"3891\"]}, \"fulfillmentOptions\": [{\"type\": \"PICKUP\", \"status\": \"IN_STOCK\"}], \"priceInfo\": {\"currentPrice\": {\"price\": \"5.00\"}, \"unitPrice\": \"$0.42/fl oz\"}, \"promotions\": [{\"type\": \"MULTIBUY\", \"text\": \"2 for $5\", \"terms\": {\"limit\": \"Limit 1 offer per household\", \"validThrough\": \"Valid through 10/31\"}}, {\"type\": \"DIGITAL_COUPON\", \"text\": \"Save $2 each with Digital Coupon\", \"terms\": \"Clipping required\"}]}}}}}</script></body></html>"
+    }
+  ]
+}

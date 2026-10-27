@@ -1,0 +1,26 @@
+[
+  {
+    "zipcode": "72712",
+    "store_name": "SYNTHETIC Bentonville Store",
+    "store_location": "406 Example Street, Bentonville, AR 72712",
+    "store_logo": "",
+    "store_brand": "yes",
+    "category": "SYNTHETIC Food",
+    "sub_category": "SYNTHETIC Dairy",
+    "product_title": "SYNTHETIC FIXTURE Great Value Whole Milk, 128 fl oz",
+    "weight": "128 fl oz",
+    "regular_price": "3.50",
+    "sale_price": "3.12",
+    "volume_deals_description": "2 for $5",
+    "volume_deals_price": "5.00",
+    "digital_deals_description": "Clip Coupon: Save $1",
+    "digital_deals_price": "",
+    "image_url": "https://i5.walmartimages.com/asr/milk.jpg",
+    "url": "https://www.walmart.com/ip/Great-Value-Milk/1111111111",
+    "upc": "001234567890",
+    "gupc": "",
+    "ppm": "$0.02/fl oz",
+    "unit_price": "",
+    "crawl_date": "2026-10-18"
+  }
+]

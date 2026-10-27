@@ -1,0 +1,12 @@
+Retailer,Category (Auto),URL,Scope,Notes
+Walmart,Food,https://www.walmart.com/cp/food/976759?povid=GlobalNav_rWeb_Grocery_GroceryShopAll,Category + ALL subcategories,Exclude 'Shop All Foods' and 'Recipes' subcategories
+Walmart,Household Essentials,https://www.walmart.com/cp/household-essentials/1115193?povid=GlobalNav_rWeb_HouseholdEssentials_AllPaperCleaning,Category + ALL subcategories,
+Walmart,Personal Care,https://www.walmart.com/cp/personal-care/1005862?povid=GlobalNav_rWeb_PersonalCare_3.19,Category + ALL subcategories,
+Walmart,Beauty,https://www.walmart.com/cp/beauty/1085666?povid=GlobalNav_rWeb_Beauty_Beauty_ShopAll_051123,Category + ALL subcategories,
+Walmart,Diapering,https://www.walmart.com/browse/diapering/5427_486190?povid=GlobalNav_mWeb_BabyKids_diaperswipes,Category + ALL subcategories,
+Walmart,Feeding,https://www.walmart.com/cp/feeding/133283?povid=GlobalNav_mWeb_BabyKids_babyformula_babyfood,Category + ALL subcategories,
+Walmart,Health & Wellness,https://www.walmart.com/cp/health/976760,Category + ALL subcategories,
+Walmart,Pets,https://www.walmart.com/cp/pets/5440?povid=GlobalNav_rWeb_Pets_PetSupplies_AllPetSupplies,Category + ALL subcategories,Exclude 'Farm Animals' subcategory
+Walmart,Balloons,https://www.walmart.com/browse/party-occasions/balloons/2637_1042319_1212898_3956207?povid=GlobalNav_rWeb_ETS_partysupplies_balloons,Category + ALL subcategories,
+Walmart,Art Supplies,https://www.walmart.com/cp/art-supplies/5899871?povid=GlobalNav_rWeb_SchoolOfficeArtSupplies_ArtsCraftsSewing_ArtSupplies,Category + ALL subcategories,
+Walmart,Office Supplies,https://www.walmart.com/cp/office-supplies/1229749?povid=GlobalNav_rWeb_SchoolOfficeArtSupplies_Department_ShopAllOfficeSupplies,Category + ALL subcategories,

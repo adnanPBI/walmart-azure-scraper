@@ -1,0 +1,15 @@
+.env
+.venv/
+.pytest_cache/
+__pycache__/
+output/
+*.pyc
+*.zip
+*.log
+*storage_state*.json
+config/stores.yaml
+
+secrets/
+**/.azure/
+*.pem
+*.key
