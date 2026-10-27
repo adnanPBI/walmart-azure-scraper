@@ -15,7 +15,7 @@ dependencies = [
  "requests>=2.31,<3", "azure-storage-blob>=12.20,<13", "azure-identity>=1.17,<2"
 ]
 [project.optional-dependencies]
-test = ["pytest>=8,<10"]
+test = ["pytest>=8,<10", "pytest-asyncio>=0.23,<2"]
 [project.scripts]
 walmart-crawl = "walmart_azure.cli:main"
 
