@@ -64,6 +64,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p test-results
+          set -o pipefail
           python -m pytest -q -rA --junitxml=test-results/pytest.xml | tee test-results/pytest.log
       - name: Assert Chromium test really ran (Ubuntu only)
         if: runner.os == 'Linux'
