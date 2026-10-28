@@ -136,7 +136,7 @@ def _validate(args) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog='walmart-crawl', description='Store-verified Azure Walmart scraper')
-    parser.add_argument('--version', action='version', version='walmart-crawl 0.5.0')
+    parser.add_argument('--version', action='version', version='walmart-crawl 0.5.1')
     subs = parser.add_subparsers(dest='command', required=True)
     inspect = subs.add_parser('inspect-categories', help='Inspect the supplied Walmart CSV; no store, Azure or network access needed')
     inspect.add_argument('--categories', default=os.getenv('CATEGORIES_CSV', 'config/categories.csv'))
@@ -193,7 +193,7 @@ def main() -> None:
     _add_configs(oxy)
     oxy.add_argument('--store', default='3891')
     oxy.add_argument('--url', default=DEFAULT_URL)
-    oxy.add_argument('--product-id', default='', help='Optional source-observed Walmart ID; adds a second billable job')
+    oxy.add_argument('--product-id', default='', help='Required for a primary product job: Walmart numeric item ID (no default paid category request)')
     oxy.add_argument('--render-html', action='store_true', help='Optional JS rendering; increases cost')
     oxy.add_argument('--output', default='output/diagnostics/oxylabs-classic-review.json')
     oxy.add_argument('--max-requests', type=int, default=1)
@@ -202,6 +202,7 @@ def main() -> None:
     oxy.add_argument('--max-body-bytes', type=int, default=2000000)
     oxy.add_argument('--execute-billable', action='store_true')
     oxy.add_argument('--billing-approved', action='store_true')
+    oxy.add_argument('--authorization-id', default='', help='Client-approved paid budget ID; required only for billable execution')
     oxyreview = subs.add_parser('oxylabs-review', help='Review a saved Classic response with ZERO network/billing')
     _add_configs(oxyreview)
     oxyreview.add_argument('--store', default='3891')
@@ -285,7 +286,7 @@ def main() -> None:
                 raise ValueError('Oxylabs diagnostic store not in configured stores')
             result = oxylabs_classic_probe(store=store,url=args.url,product_id=args.product_id,
                 render=args.render_html,output=args.output,execute_billable=args.execute_billable,
-                billing_approved=args.billing_approved,max_requests=args.max_requests,
+                billing_approved=args.billing_approved,authorization_id=args.authorization_id,max_requests=args.max_requests,
                 max_retries=args.max_retries,max_seconds=args.max_seconds,
                 max_body_bytes=args.max_body_bytes)
             print(json.dumps({'status':result['status'],'network_requests_sent':result['requests_sent'],

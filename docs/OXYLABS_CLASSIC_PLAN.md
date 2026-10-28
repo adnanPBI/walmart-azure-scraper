@@ -1,67 +1,55 @@
-# Classic Oxylabs Web Scraper API — bounded diagnostic request
+# Classic Oxylabs Web Scraper API — one-product diagnostic v0.5.1
 
-**Dated: 2026-10-27 Asia/Dhaka (UTC+06:00)**
+**Date 2026-10-28 (Asia/Dhaka). Zero paid requests authorized or executed.**
 
-## What is supported
+## Supported API route and limitation
 
-The adapter `walmart_azure/oxylabs_classic.py` implements **Oxylabs Web Scraper API (Classic)** via HTTPS Basic-auth `POST https://realtime.oxylabs.io/v1/queries` with the retailer-specific URL source `walmart`. A second optional source is `walmart_product`. This is the **scraping API**, not a residential proxy account, and not the newer Web API bearer-token `/scrape` endpoint.
+`POST https://realtime.oxylabs.io/v1/queries` using Classic API HTTP Basic Auth and a **single** documented `walmart_product` source with `query=<source-observed numeric product ID>` and `parse=true`.
 
-The exact Classic account, available target features, real output shape, store/pickup locality and quotas **have not yet been tested with buyer credentials**. Do not confuse provider API success with store-accurate Walmart product evidence. Only client-confirmed demonstration store: **#3891, 3900 Fountain Square Pl, Waukegan IL 60085, PICKUP**.
-
-Official/reference sources:
-- https://developers.oxylabs.io/products/web-scraper-api
-- https://github.com/oxylabs/agent-skills/blob/main/skills/web-scraper-api/examples.md
-- https://github.com/oxylabs/web-scraper-api
-- https://oxylabs.io/products/scraper-api/web/pricing
-
-## Payloads, expected envelope
-
-No-auth dry-run request **does not send** the following payload:
-
-```
-POST https://realtime.oxylabs.io/v1/queries
-Content-Type: application/json
-Authorization: Basic <read from process environment at runtime; never log>
-
-{"source":"walmart","url":"https://www.walmart.com/cp/food/976759"}
+```json
+{"source":"walmart_product","query":"<REAL_SOURCE_OBSERVED_ITEM_ID>","parse":true}
 ```
 
-Only if buyer explicitly authorizes rendering and associated cost: `{"source":"walmart","url":"https://www.walmart.com/cp/food/976759","render":"html"}`. Rendering need is **unknown until the first unrendered approved response**; never auto-upgrade to a more expensive route.
+The client-confirmed scope is Waukegan Walmart #3891, 3900 Fountain Square Pl, IL 60085, **PICKUP**. Public Classic examples establish a product-ID query, but **do not establish a store-ID/PICKUP selector** for this target. Neither CLI `--store`, ZIP/geolocation nor a request label independently proves locality. Do not invent provider parameters or use a different service's store selection API. Explicit result-body provenance is required; the returned URL must be an actual Walmart product URL containing the expected ID. Parsed product JSON without inspectable page context is **not** acceptable for store/PICKUP price verification.
 
-Only if a source-observed numeric product ID is available, and separately authorized: `{"source":"walmart_product","query":"<SOURCE-OBSERVED-PRODUCT-ID>","parse":true}`. That adds a **second** API job.
+The returned source must establish one selected page store, one product store, explicit PICKUP availability, Walmart first-party seller, and direct priceInfo/PPM/offer objects bound to that context. Any mismatch, multiple unresolved store IDs, unknown source URL, listing-only object or inconsistent per-store offer/price scope sets verification false. A positive shape result still requires independent human comparison; 500 live records and Azure qualification are separate.
 
-Expected Classic response (shape, not proof):
+## No-cost command (works without credentials)
 
-```
-{
-  "results":[{
-    "status_code":200,
-    "url":"https://www.walmart.com/cp/food/976759",
-    "job_id":"<provider-job-id>",
-    "content":"<html>...</html>"
-  }]
-}
+```powershell
+python -m walmart_azure oxylabs-probe --store 3891 --product-id 1234567890 `
+  --max-requests 1 --max-retries 0 --max-seconds 90 `
+  --output output\diagnostics\classic-dry-run.json
 ```
 
-If `content` is a parsed JSON object, it may not include original visible store/PPM/offer text. The probe therefore does **not** certify those fields from a generic provider parse. The **complete sanitized provider response** is saved with a raw SHA-256 and sanitized SHA-256. Original raw bodies are not bundled in public ZIPs. Merchant price, original displayed PPM, linked coupons and store/PICKUP fields require human source comparison before any buyer acceptance.
+`1234567890` is a synthetic placeholder; replace it with a real observed product ID before any authorization request. Without a product ID the probe returns `NEEDS_PRODUCT_ID_NO_NETWORK_NO_COST`, not a category request. No retries/rendering/extra jobs occur implicitly.
 
-## Approval gate, execution limits and stop conditions
+## Paid execution plan — NOT APPROVED
 
-- **Initially 0 requests:** `python -m walmart_azure oxylabs-probe --store 3891 --max-requests 1 --max-retries 0 --max-seconds 90 --output output/diagnostics/classic-dry-run.json`
-- **If buyer approves paid execution:** 1 Classic job, 0 retries, no JS rendering, whole-run deadline 90 s, max 2 MB returned body, precisely one category URL. No 100-page/1,500-request inventory.
-- Hard caps, even if arguments are changed: **at most 2 provider jobs including retries, at most 1 retry/job, 180 s whole-run application deadline, 5 MB/response**. Network calls have connect/read timeouts; OS/network socket deadlines are also subject to system scheduling.
-- Abort on provider auth failure (401/403), rate limit 429, retailer `/blocked`/captcha, non-200 source status, absent/unsafe source URL, missing explicit store ID #3891, no verified local pickup or price, missing original source evidence, body cap, malformed provider response, or deadline. Server-side 5xx may be retried **only if** explicitly configured with a funded 2-job cap.
-- No automatic switching to generic universal, residential proxies, alternative location, headless-browser cloud usage, or scheduled collection.
-- No credential read for the default dry-run. Paid execution requires **both** `--execute-billable` and `--billing-approved` AND separate environment variables `OXY_WSA_USERNAME` / `OXY_WSA_PASSWORD`. These flags are technical safeguards, not a replacement for client authorization.
+If the client separately approves **one job**, grants valid credentials privately, confirms the product ID and acceptable Classic store-localization method, the operator can supply a unique agreed authorization ID, environment variables `OXY_WSA_USERNAME` and `OXY_WSA_PASSWORD` and explicit flags:
 
-## Cost estimate (illustrative, not a binding Classic quote)
+```powershell
+python -m walmart_azure oxylabs-probe --store 3891 --product-id <SOURCE_ID> `
+  --max-requests 1 --max-retries 0 --max-seconds 90 `
+  --authorization-id <BUYER_APPROVAL_REFERENCE> `
+  --execute-billable --billing-approved `
+  --output output\private\classic-approved-unique-receipt.json
+```
 
-Oxylabs' public Web Scraper API pricing page currently lists approximately **$1.15 per 1,000 successful "Other" results without JS** and **$1.35 per 1,000 with JS** on the Free Trial/Micro pricing table. At these published unit rates, one no-JS diagnostic result is about **$0.00115** and two about **$0.00230**; a rendered result is about **$0.00135**. **These are unit-rate arithmetic illustrations, NOT the price of a Classic account, subscription, minimum charge or an approved quote.** The buyer must confirm actual Classic account credits/contract, tax, rounding, any rendering multipliers, and spend caps from their Oxylabs account. Requests returning provider 2xx and 4xx may be billable under published terms. The dry-run has no Oxylabs charges.
+No credentials, approval reference or paid execution was supplied. The source does not enable any scheduled jobs or spend by default. The product source may return JSON without original price/PPM/offer evidence; then **STOP** and ask the client to confirm their supported Classic parameters or authorized store-bound workflow. The production runner still uses Playwright; the Classic adapter is a small standalone probe, not a completed catalog collector.
 
-Azure diagnostic cost is **zero** for this initial local probe because **no Azure service is created or started**. Deployment remains a separate decision and requires a subscription-scoped cost quote and permissions.
+## Budgets and durable controls
 
-## Earliest useful next milestone
+- Default maximum: **1 provider call, 0 retry, 90 seconds whole-run, 2 MB response**. Hard bounds: at most 2 calls including retries, 1 retry, 180 seconds and 5 MB/response; no cost increase without a separate approved budget.
+- A per-authorization ledger file and an exclusive receipt are durably `fsync`-written before each dispatch, reserving *possible charges* even if the process crashes. Requests with the same authorization ID cannot exceed the cap even with another receipt file. Stale locks fail closed until manually investigated; no background retry.
+- The independent daemon-transport watchdog returns on the whole-run deadline even if the remote server trickles chunks indefinitely. The uncertain attempted call remains charged against the cap. A timed-out socket might continue awaiting OS transport cleanup; a second call is not issued.
+- Complete sanitized response JSON and raw/sanitized SHA-256 digests are retained privately. No unsanitized provider envelope, passwords, cookies or API credentials should be shared publicly. A provider response lacking an actual returned URL fails closed.
+- Abort on 401/403, 429, 5xx budget exhaustion, redirect/challenge, unknown store, seller mismatch, missing product body/price/PICKUP, incomplete offer terms, response cap or deadline. No CAPTCHA evasion, residential proxy assumption or automatic rendering upgrade.
 
-- Source, offline tests and dry-run adapter: delivered **October 27, 2026 (UTC+06:00)**.
-- If the client explicitly approves a Classic API call and supplies secure execution access by October 28: target **October 30, 2026, 18:00 Asia/Dhaka (UTC+06:00)** for a one-job response receipt and a go/no-go decision on source-proven pickup/price compatibility. This is conditional, not a promise of 500 products.
-- A complete 500-product live demonstration, observed recovery and Azure acceptance cannot be dated reliably until the store-specific price-bearing response is qualified and the required all-subcategory coverage is verifiable; budget 5–7 working days after those gates pass, subject to the retailer/provider's actual capabilities.
+**Estimated price:** The client's Classic subscription rates, success billing, quota and any minimum charge are unknown. Obtain an account-specific quote and approval; do not substitute generic Web Scraper API marketing unit prices for a binding Classic rate. Dry-run is zero provider cost.
+
+## Conditional milestone
+
+**2026-10-30 18:00 Asia/Dhaka (07:00 US Central)** is a conditional **single-product diagnostic go/no-go** target only if access/product-selection details are authorized by October 29. It is *not* a promise of 500 products or Azure acceptance. Full required category coverage, live recovery and Azure collection remain an indicative 5–7 working days **after** source-localization and complete scope are qualified; this is not a fixed completion date.
+
+Official Oxylabs reference examples: https://github.com/oxylabs/agent-skills/blob/main/skills/web-scraper-api/examples.md and https://github.com/oxylabs/web-scraper-api .

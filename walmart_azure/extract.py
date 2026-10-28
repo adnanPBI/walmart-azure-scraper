@@ -32,6 +32,14 @@ _MULTIPACK_X = re.compile(
     r'(?:\s+(?:cans?|bottles?|each))?', re.I)
 
 
+# Preserve both individually displayed unit and trailing pack count without
+# inventing total contents: e.g. "Soda 12 fl oz, 12 Pack".
+_PACK_AFTER_UNIT = re.compile(
+    r'\b\d+(?:\.\d+)?\s*(?:fl\s*oz|oz|lbs?|g|kg|ml|l|qt|gal)\b'
+    r'\s*[,;\-]\s*\d+\s*(?:packs?|pk|count|ct)\b', re.I)
+MAX_OFFER_EVIDENCE_CHARS = 200_000
+
+
 class BlockedResponse(RuntimeError):
     pass
 
@@ -301,7 +309,7 @@ def get_weight(item: dict) -> str:
     # The product name may give the entire pack identity while a `size` field
     # contains only the inner-unit quantity (e.g. `12 fl oz`). Prefer the full
     # label that was actually displayed; never compute 144 fl oz.
-    for regex in (_PACK_WITH_UNIT, _MULTIPACK_X):
+    for regex in (_PACK_WITH_UNIT, _MULTIPACK_X, _PACK_AFTER_UNIT):
         match = regex.search(name)
         if match:
             return match.group(0).strip()
@@ -360,7 +368,7 @@ def _promo_entries(item: dict) -> list[tuple[str, str, str]]:
 
     def walk(value: Any, hint: str = '', depth: int = 0):
         if depth > 5 or len(found) >= 80:
-            return
+            raise ParseError("Offer depth/count exceeds review limits; never silently truncate")
         if isinstance(value, list):
             for item_value in value:
                 walk(item_value, hint, depth + 1)
@@ -368,11 +376,16 @@ def _promo_entries(item: dict) -> list[tuple[str, str, str]]:
         if isinstance(value, str):
             text = clean_text(value)
             if text:
-                found.append((text[:2000], hint, ''))
+                if len(text) > MAX_OFFER_EVIDENCE_CHARS:
+                    raise ParseError("Offer text exceeds review limit; evidence incomplete")
+                found.append((text, hint, ''))
             return
         if not isinstance(value, dict):
             return
         local_hint = ' '.join([hint] + [str(value[k]) for k in type_keys if isinstance(value.get(k), str)])
+        if (value.get('requiresClipping') is True or value.get('requiresActivation') is True or
+            bool(value.get('clippingRequirement')) or bool(value.get('activationRequirement'))):
+            local_hint += ' digital coupon clip required'
         texts = []
         for key in primary:
             if key in value:
@@ -402,7 +415,10 @@ def _promo_entries(item: dict) -> list[tuple[str, str, str]]:
                     explicit_payable = direct
                     break
         if texts:
-            found.append(('; '.join(texts)[:3000], local_hint, explicit_payable))
+            full_text = '; '.join(texts)
+            if len(full_text) > MAX_OFFER_EVIDENCE_CHARS:
+                raise ParseError('Offer terms exceed review limit; evidence incomplete')
+            found.append((full_text, local_hint, explicit_payable))
         for key in promo_fields:
             if key in value:
                 walk(value[key], local_hint, depth + 1)

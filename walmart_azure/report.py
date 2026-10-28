@@ -171,7 +171,8 @@ def build_report(store: Store, config: Config, chunks: list[dict], previous: dic
             current = len(by_shard[cat.key])
             if last and current < int(last) * config.limits.min_category_vs_last_good:
                 reasons.append(f'category_yield_drop:{key}:{current}/{last}')
-    observed = set(latest_by_id)
+    # Canary evidence MUST be observed in this run, not carried forward from history.
+    observed = {record_identity(r) for r in all_records[:fresh_observed]}
     if store.canary_item_ids and not set(store.canary_item_ids).intersection(observed):
         reasons.append(f'canary_missing:{list(store.canary_item_ids)}')
     invalid = []
