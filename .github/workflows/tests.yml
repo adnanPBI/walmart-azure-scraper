@@ -1,4 +1,4 @@
-name: v0.5.2 offline quality gates
+name: v0.5.3 offline quality gates
 
 on:
   push:
@@ -93,6 +93,25 @@ jobs:
           assert data['requests_sent']==0
           assert data['jobs_planned']==[{'source':'walmart','url':'https://www.walmart.com/ip/item/1234567890','parse':False}]
           print('Raw-HTML Classic payload and zero requests confirmed; synthetic URL only')
+          PY
+      - name: Offline Classic strict pickup source qualification (SYNTHETIC only)
+        shell: bash
+        run: |
+          python -m walmart_azure oxylabs-capabilities > test-results/classic-capabilities.json
+          python -m walmart_azure oxylabs-qualify \
+            --response examples/oxylabs_classic_SYNTHETIC_WAUKEGAN_3891_STRICT_REVIEW.json \
+            --url https://www.walmart.com/ip/SYNTHETIC-DO-NOT-SUBMIT/1234567890 \
+            --product-id 1234567890 --store 3891 --category Food \
+            --sub-category 'Soft Drinks' --expected-job-id SYNTHETIC_JOB_NOT_AUTHENTIC \
+            --output-dir test-results/classic-strict-fixture
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          data=json.loads(Path('test-results/classic-strict-fixture/qualification_receipt.json').read_text())
+          assert data['status']=='STRICT_OFFLINE_SOURCE_SHAPE_CANDIDATE_NOT_LIVE_AUTHENTICATED'
+          assert data['paid_requests']==0 and data['verified_genuine_live_products']==0
+          assert data['buyer_acceptance'] is False
+          print('Strict synthetic source gate executed; NO genuine product or API request')
           PY
       - name: Build source distribution and wheel
         shell: bash

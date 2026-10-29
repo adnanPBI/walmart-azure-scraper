@@ -1,0 +1,10 @@
+{
+  "results": [
+    {
+      "job_id": "SYNTHETIC_JOB_NOT_AUTHENTIC",
+      "status_code": 200,
+      "content": "<!DOCTYPE html><html><script id=\"__NEXT_DATA__\">{\"props\": {\"pageProps\": {\"initialData\": {\"location\": {\"storeId\": \"3891\", \"fulfillmentType\": \"PICKUP\"}, \"product\": {\"usItemId\": \"1234567890\", \"canonicalUrl\": \"/ip/SYNTHETIC-DO-NOT-SUBMIT/1234567890\", \"name\": \"SYNTHETIC Soda 12 fl oz, 12 Pack\", \"size\": \"12 fl oz\", \"brand\": \"Great Value\", \"sellerName\": \"Walmart.com\", \"location\": {\"storeId\": \"3891\"}, \"fulfillmentOptions\": [{\"type\": \"PICKUP\", \"storeId\": \"3891\", \"status\": \"IN_STOCK\"}], \"priceInfo\": {\"storeId\": \"3891\", \"fulfillmentType\": \"PICKUP\", \"currentPrice\": {\"price\": \"4.00\"}, \"unitPrice\": \"$0.25/fl oz\"}, \"promotions\": [{\"type\": \"MULTIBUY\", \"text\": \"2 for $5\", \"requiresClipping\": true, \"terms\": \"Limit 1; Valid through 10/31\", \"storeId\": \"3891\", \"fulfillmentType\": \"PICKUP\"}]}}}}}</script></html>",
+      "url": "https://www.walmart.com/ip/SYNTHETIC-DO-NOT-SUBMIT/1234567890"
+    }
+  ]
+}

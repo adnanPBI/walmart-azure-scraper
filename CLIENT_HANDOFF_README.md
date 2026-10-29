@@ -1,4 +1,4 @@
-# Walmart Scraper v0.5.2 — Client commands (2026-10-29)
+# Walmart Scraper v0.5.3 — Client commands (2026-10-29)
 
 The authoritative release is the GitHub commit reported with the matching successful GitHub Actions run; **not** the previously shared v0.5.0 ZIP or its older Instruction02 text. Clone or check out the full commit SHA supplied in the private Freelancer message.
 
@@ -37,3 +37,14 @@ The **separate** paid execution flags (not approved at present) require a pre-ex
 ## Status
 
 Offline tests and CI are distinct from paid Oxylabs execution, 500 live distinct products, live interruption recovery, full category/subcategory coverage and Azure verification. None of those live acceptance gates is completed. The first conditional live review milestone is October 30, 2026 at 18:00 Asia/Dhaka (07:00 Central) *only if the buyer authorizes and provides a source-observed product and access method in time*. Larger acceptance work remains conditional.
+
+
+## v0.5.3 qualification, ZERO provider requests
+
+```powershell
+python -m walmart_azure oxylabs-capabilities
+python -m pytest tests/test_classic_qualification.py -q
+python -m walmart_azure oxylabs-qualify --response examples/oxylabs_classic_SYNTHETIC_WAUKEGAN_3891_STRICT_REVIEW.json --url https://www.walmart.com/ip/SYNTHETIC-DO-NOT-SUBMIT/1234567890 --product-id 1234567890 --store 3891 --category Food --sub-category 'Soft Drinks' --expected-job-id SYNTHETIC_JOB_NOT_AUTHENTIC --output-dir output/diagnostics/classic-synthetic-review
+```
+
+Synthetic fixture and preview never count toward buyer acceptance. Full source requirements: `docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261029.md`. Exact #3891 PICKUP store-selection method, billable requests, genuine price evidence, full-coverage collector integration and Azure remain unverified/unapproved.

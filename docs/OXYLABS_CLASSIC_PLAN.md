@@ -32,3 +32,7 @@ Classic is currently a standalone one-product probe. The full Playwright runner 
 2026-10-30 18:00 Asia/Dhaka / 07:00 US Central is a CONDITIONAL one-product go/no-go only; the required approved source/URL/store selection method is not available yet. Full buyer acceptance remains an estimated 5–7 working days AFTER connectivity and coverage qualification, not a guaranteed completion date.
 
 References: https://oxylabs.io/products/scraper-api/ecommerce/walmarts ; https://github.com/oxylabs/web-scraper-api .
+
+## v0.5.3 source-qualification addendum (2026-10-29)
+
+The authoritative strict offline evidence gate is `docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261029.md`. Classic `walmart` raw HTML is documented; an exact #3891 PICKUP selection mechanism is NOT confirmed. `oxylabs-qualify` is a zero-request review of a saved response and never authenticates a live job or publishes the latest catalog. No credentials, paid calls, rendering, alternative provider or Azure jobs are approved.

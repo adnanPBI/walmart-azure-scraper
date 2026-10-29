@@ -18,6 +18,7 @@ from .discovery_tree import discover_recursive
 from .diagnostic import diagnostic_probe
 from .oxylabs_classic import run_probe as oxylabs_classic_probe, review_saved_response, DEFAULT_URL
 from .paid_budget import PaidBudget
+from .classic_qualification import capabilities as classic_capabilities, qualify_saved_response as classic_qualify_saved_response
 
 
 class JSONFormatter(logging.Formatter):
@@ -137,7 +138,7 @@ def _validate(args) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog='walmart-crawl', description='Store-verified Azure Walmart scraper')
-    parser.add_argument('--version', action='version', version='walmart-crawl 0.5.2')
+    parser.add_argument('--version', action='version', version='walmart-crawl 0.5.3')
     subs = parser.add_subparsers(dest='command', required=True)
     inspect = subs.add_parser('inspect-categories', help='Inspect the supplied Walmart CSV; no store, Azure or network access needed')
     inspect.add_argument('--categories', default=os.getenv('CATEGORIES_CSV', 'config/categories.csv'))
@@ -208,6 +209,17 @@ def main() -> None:
     enroll.add_argument('--authorization-id', required=True)
     enroll.add_argument('--max-requests', type=int, default=1)
     enroll.add_argument('--confirm-client-approval', action='store_true')
+    caps = subs.add_parser('oxylabs-capabilities', help='Zero-cost Classic capabilities and exact PICKUP proof requirements')
+    qual = subs.add_parser('oxylabs-qualify', help='Strict OFFLINE review of saved Classic raw-HTML product response')
+    _add_configs(qual)
+    qual.add_argument('--store', default='3891')
+    qual.add_argument('--response', required=True, help='Saved provider response envelope, no network calls')
+    qual.add_argument('--url', required=True, help='Source-observed Walmart /ip/ product URL')
+    qual.add_argument('--product-id', required=True)
+    qual.add_argument('--category', required=True, help='Operator label, not independent category coverage')
+    qual.add_argument('--sub-category', default='')
+    qual.add_argument('--expected-job-id', default='', help='Optional job ID comparison, not authentication')
+    qual.add_argument('--output-dir', default='output/diagnostics/classic-strict-review')
     oxyreview = subs.add_parser('oxylabs-review', help='Review a saved Classic response with ZERO network/billing')
     _add_configs(oxyreview)
     oxyreview.add_argument('--store', default='3891')
@@ -306,6 +318,25 @@ def main() -> None:
                               'ledger':str(ledger),'attempt_cap':args.max_requests,
                               'paid_requests_executed':0},indent=2))
             code=0
+        elif args.command == 'oxylabs-capabilities':
+            print(json.dumps(classic_capabilities(),indent=2))
+            code=0
+        elif args.command == 'oxylabs-qualify':
+            cfg=load_config(args.categories,args.stores)
+            store=next((x for x in cfg.stores if x.id==args.store),None)
+            if store is None: raise ValueError('Configured store not found')
+            category=Category(args.category,args.sub_category,
+                              next((c.url for c in cfg.categories if c.name==args.category),
+                                   'https://www.walmart.com/cp/food/976759'))
+            result=classic_qualify_saved_response(
+                response_file=args.response,output_dir=args.output_dir,store=store,
+                observed_url=args.url,product_id_expected=args.product_id,
+                category=category,expected_job_id=args.expected_job_id)
+            print(json.dumps({'status':result['status'],'reasons':result['reasons'],
+                              'original_html_sha256':result.get('original_html_sha256',''),
+                              'output_dir':args.output_dir,'buyer_acceptance':False,
+                              'genuine_products_verified':0,'network_requests':0},indent=2))
+            code=0 if result['status'].startswith('STRICT_OFFLINE') else 2
         elif args.command == 'oxylabs-review':
             cfg=load_config(args.categories,args.stores)
             store=next((x for x in cfg.stores if x.id==args.store),None)

@@ -1,27 +1,12 @@
-WALMART AZURE SCRAPER v0.5.2 — GITHUB AUTHORITATIVE RELEASE (2026-10-29)
-
-Use README.md and CLIENT_HANDOFF_README.md at the exact GitHub commit shared by the developer.
-Do NOT use older v0.3.0/v0.5.0 instructions or an older ZIP dependency list.
-
-Windows PowerShell, from project root:
+WALMART AZURE SCRAPER v0.5.3 - AUTHORITATIVE GITHUB RELEASE, 2026-10-29
+Read README.md, CLIENT_HANDOFF_README.md, docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261029.md at exact tested commit.
+Windows PowerShell from repository root:
   py -3.12 -m venv .venv
-  .\.venv\Scripts\Activate.ps1
-  python -m pip install -e ".[test]"
-  python -m walmart_azure --version
+  .\.venv\Scripts\python.exe -m pip install -e ".[test]"
   Copy-Item config\stores.example.yaml config\stores.yaml
-python -m walmart_azure preflight
-  python -m pytest -q
-
-Offline Classic primary-product review (replace example ID with an observed item):
-  python -m walmart_azure oxylabs-probe --store 3891 --product-id 1234567890 --url https://www.walmart.com/ip/item/1234567890 --max-requests 1 --max-retries 0 --max-seconds 90 --output output\diagnostics\classic-dry-run.json
-
-This dry-run uses zero paid provider requests. No paid access, client credentials,
-Walmart genuine products, Azure deployment or scheduled production operation are authorized or verified.
-Store #3891 Waukegan PICKUP is an evidence requirement, NOT a selector established by the Classic payload.
-
-Client findings and tests: docs/V052_ISSUE_TO_FIX_AND_TESTS.md
-Provider approval and boundedness: docs/OXYLABS_CLASSIC_PLAN.md
-Release acceptance status: docs/RELEASE_STATUS.json
-
-Raw Walmart URL source: parse=false, not parsed-only walmart_product parse=true.
-Paid probe requires one fixed WALMART_OXYLABS_LEDGER_ROOT and manually enrolled buyer-approved grant; output paths cannot reset allowance.
+  .\.venv\Scripts\python.exe -m walmart_azure preflight
+  .\.venv\Scripts\python.exe -m pytest -q
+  .\.venv\Scripts\python.exe -m walmart_azure oxylabs-capabilities
+  .\.venv\Scripts\python.exe -m pytest tests/test_classic_qualification.py -q
+No credentials, paid requests, real Walmart #3891 PICKUP local prices, live recovery, Azure deployment or production schedules are approved/verified.
+The saved-response source gate runs OFFLINE and never publishes an acceptance dataset.

@@ -1,5 +1,5 @@
 {
-  "version": "0.5.2",
+  "version": "0.5.3",
   "date": "2026-10-29",
   "source": "GitHub commit is authoritative; verify exact CI run",
   "offline_tests": "local tests passed; see current CI for exact count",
@@ -9,8 +9,11 @@
   "complete_subcategories_verified": false,
   "live_recovery_verified": false,
   "client_authorization": "NOT_GRANTED",
-  "next_milestone": "2026-10-30 18:00 Asia/Dhaka conditional single-product go/no-go only",
+  "next_milestone": "2026-10-30 18:00 Asia/Dhaka conditional one-product go/no-go, not guaranteed live result",
   "classic_payload": "Walmart raw HTML URL, parse=false; source-observed ID+URL",
   "paid_approval_root": "WALMART_OXYLABS_LEDGER_ROOT required; never receipt-folder-derived",
-  "pending_local_pickup_selection": true
+  "pending_local_pickup_selection": true,
+  "classic_strict_response_gate": "OFFLINE_IMPLEMENTED",
+  "classic_exact_store_selection": "UNVERIFIED",
+  "classic_collector_integration": "NOT_QUALIFIED"
 }

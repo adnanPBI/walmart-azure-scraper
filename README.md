@@ -1,4 +1,4 @@
-# Walmart Azure Scraper v0.5.2 — authoritative GitHub release
+# Walmart Azure Scraper v0.5.3 — authoritative GitHub release
 
 **Status (2026-10-29): source + OFFLINE tested. No paid Classic Oxylabs request, genuine 500-product crawl, observed live recovery, or Azure execution has been approved or performed.** The default commands do not make paid calls. Public source: `https://github.com/adnanPBI/walmart-azure-scraper`; identify the exact tested commit in GitHub Actions. No separate ZIP is authoritative.
 
@@ -62,3 +62,8 @@ See `CLIENT_HANDOFF_README.md`, `docs/V052_ISSUE_TO_FIX_AND_TESTS.md`, `docs/OXY
 ## Next decision and target
 
 The earlier **2026-10-30 18:00 Asia/Dhaka (UTC+6), 07:00 US Central** target is realistic **only for one newly approved, source-observed-product diagnostic and go/no-go assessment**, if the buyer supplies an authorization decision, selected product ID, safe credential channel and provider configuration by Oct 29. It is not a 500-product or Azure completion promise. The larger live project remains an indicative **5–7 working days after approved store-specific source access and all-subcategory coverage are proven**. If Classic cannot return local store/PICKUP/price evidence, stop and request the buyer's supported store-bound workflow rather than inventing prices or using an unapproved route.
+
+
+## Strict Classic #3891 PICKUP source qualification (v0.5.3)
+
+The no-network `oxylabs-capabilities` command identifies the documented Classic raw-HTML route and records that an exact store/PICKUP selector remains **unverified**. `oxylabs-qualify` reviews a saved provider response, fails closed on ambiguous page/product/monetary scope, and writes sanitized source evidence plus an explicitly **NOT LIVE VERIFIED** 22-field record candidate when strict checks pass. It never calls Oxylabs or publishes last-good data. See `docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261029.md` and `tests/test_classic_qualification.py`. The full production runner is still Playwright-based; provider-backed category/detail integration remains separate and unqualified.
