@@ -13,6 +13,7 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[test]"
 python -m walmart_azure --version
 python -m walmart_azure inspect-categories
+Copy-Item config\stores.example.yaml config\stores.yaml
 python -m walmart_azure preflight
 python -m pytest -q
 ```

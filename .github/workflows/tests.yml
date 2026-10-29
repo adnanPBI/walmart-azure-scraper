@@ -1,4 +1,4 @@
-name: v0.5.0 offline quality gates
+name: v0.5.2 offline quality gates
 
 on:
   push:
@@ -82,14 +82,17 @@ jobs:
         shell: bash
         run: |
           mkdir -p test-results
-          python -m walmart_azure oxylabs-probe --store 3891 --max-requests 1 --max-retries 0 --max-seconds 90 --output test-results/oxylabs-dry-run.json
+          python -m walmart_azure oxylabs-probe --store 3891 --product-id 1234567890 --url https://www.walmart.com/ip/item/1234567890 --max-requests 1 --max-retries 0 --max-seconds 90 --output test-results/oxylabs-dry-run.json
           python - <<'PY'
           import json
           from pathlib import Path
           path=Path('test-results/oxylabs-dry-run.json')
           assert path.exists(), 'No dry-run receipt'
           data=json.loads(path.read_text())
-          print('Dry-run receipt created; no paid execution flags supplied')
+          assert data['status']=='DRY_RUN_NO_NETWORK_NO_COST'
+          assert data['requests_sent']==0
+          assert data['jobs_planned']==[{'source':'walmart','url':'https://www.walmart.com/ip/item/1234567890','parse':False}]
+          print('Raw-HTML Classic payload and zero requests confirmed; synthetic URL only')
           PY
       - name: Build source distribution and wheel
         shell: bash

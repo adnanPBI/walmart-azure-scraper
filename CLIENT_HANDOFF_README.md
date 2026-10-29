@@ -12,6 +12,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[test]"
 python -m walmart_azure --version
+Copy-Item config\stores.example.yaml config\stores.yaml
 python -m walmart_azure preflight
 python -m pytest -q
 ```

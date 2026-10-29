@@ -8,7 +8,8 @@ Windows PowerShell, from project root:
   .\.venv\Scripts\Activate.ps1
   python -m pip install -e ".[test]"
   python -m walmart_azure --version
-  python -m walmart_azure preflight
+  Copy-Item config\stores.example.yaml config\stores.yaml
+python -m walmart_azure preflight
   python -m pytest -q
 
 Offline Classic primary-product review (replace example ID with an observed item):
