@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 import sys
 import os
-from .config import load_config, load_categories
+from .config import load_config, load_categories, Category
 from .schema import FIELDS, validate_record
 from .pipeline import run_store
 from .storage import create_storage
