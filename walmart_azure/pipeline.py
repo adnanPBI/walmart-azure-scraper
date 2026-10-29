@@ -12,6 +12,7 @@ from .browser import WalmartBrowser, StoreMismatch, BrowserFailure, next_page_ur
 from .config import Config, Store, Category
 from .extract import (BlockedResponse, ParseError, sponsored, product_id, product_url, seller_is_walmart,
                       pickup_availability, local_pickup_offer, make_record, approximate_weight, match_location, regular_sale)
+from .oxylabs_classic import _money_binding
 from .report import build_report
 from .schema import validate_record
 
@@ -77,9 +78,11 @@ async def fetch_category_page(browser: WalmartBrowser, config: Config, store: St
                     continue
                 # Opt-in listing-only mode is valid *only when the listing itself*
                 # carries seller + store-specific price provenance + explicit pickup.
+                money_ok = _money_binding(item, store.id)[0] if item.get('priceInfo') else False
                 use_listing = (config.limits.detail_mode == 'missing_local_and_price'
                     and seller_is_walmart(item) and local_pickup_offer(item)
-                    and match_location(item, store)[0] and bool(regular_sale(item)[0]))
+                    and match_location(item, store)[0] and bool(regular_sale(item)[0])
+                    and money_ok)
                 if use_listing:
                     rec = make_record(item, store, category, observed_at)
                     if approximate_weight(rec['weight']) or approximate_weight(str(item.get('name') or '')):
@@ -106,6 +109,11 @@ async def fetch_category_page(browser: WalmartBrowser, config: Config, store: St
                             unresolved_candidate_ids[pid] = 'unverified_seller'
                         continue
                     availability = pickup_availability(product)
+                    if availability == 'AVAILABLE':
+                        price_ok, price_reason = _money_binding(product, store.id)
+                        if not price_ok:
+                            raise ParseError('Required store-local PICKUP price/PPM/offer verification failed: '
+                                             + price_reason)
                     if availability == 'UNKNOWN':
                         reasons['no_explicit_local_pickup_or_shipping_only'] += 1
                         options = product.get('fulfillmentOptions') or []

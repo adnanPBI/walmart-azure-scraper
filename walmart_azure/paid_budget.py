@@ -49,10 +49,66 @@ class PaidBudget:
         self.authorization_id = authorization_id
         self.cap = cap
         token = sha256(authorization_id.encode()).hexdigest()[:24]
-        self.ledger_file = receipt_file.parent / f'.oxylabs-approval-{token}.json'
-        self.lock_file = receipt_file.parent / f'.oxylabs-approval-{token}.lock'
+        root = self._ledger_root()
+        self.ledger_file = root / f'.oxylabs-approval-{token}.json'
+        self.lock_file = root / f'.oxylabs-approval-{token}.lock'
+
+    @staticmethod
+    def _ledger_root() -> Path:
+        configured = os.getenv('WALMART_OXYLABS_LEDGER_ROOT', '').strip()
+        if not configured:
+            raise BudgetError('Set WALMART_OXYLABS_LEDGER_ROOT to one fixed persistent approval directory')
+        path = Path(configured).expanduser()
+        if not path.is_absolute() or not path.is_dir() or path.is_symlink():
+            raise BudgetError('Ledger root must be an existing absolute non-symlink directory')
+        return path.resolve(strict=True)
+
+    @classmethod
+    def register_authorization(cls, authorization_id: str, cap: int) -> Path:
+        """Operator-only, one-time grant creation AFTER separate client approval.
+
+        Never called automatically by a paid probe. Existing grant is immutable
+        for this ID; registration cannot reset a spent allowance.
+        """
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{7,99}', authorization_id or ''):
+            raise BudgetError('Invalid approval reference')
+        if not isinstance(cap, int) or not 1 <= cap <= 2:
+            raise BudgetError('Approval cap must be 1 or 2')
+        root = cls._ledger_root()
+        token = sha256(authorization_id.encode()).hexdigest()[:24]
+        path = root / f'.oxylabs-approval-{token}.json'
+        if (root / f'.oxylabs-approval-{token}.lock').exists():
+            raise BudgetError('Existing approval lock; manual reconciliation required')
+        try:
+            _synced_json(path, {
+                'format': 'oxylabs-approval-v2',
+                'authorization_sha256': sha256(authorization_id.encode()).hexdigest(),
+                'cap': cap, 'attempts': [],
+                'enrolled_utc': datetime.now(timezone.utc).isoformat(),
+            }, exclusive=True)
+        except FileExistsError as exc:
+            raise BudgetError('Approval already enrolled; no allowance reset permitted') from exc
+        return path
+
+    def _read_grant(self) -> dict:
+        if self.lock_file.exists():
+            raise BudgetError('Approval locked or interrupted; stop until reviewed')
+        if not self.ledger_file.is_file() or self.ledger_file.is_symlink():
+            raise BudgetError('Approval ledger missing; paid request cannot recreate it')
+        try:
+            grant = json.loads(self.ledger_file.read_text(encoding='utf-8'))
+        except (ValueError, OSError, UnicodeError) as exc:
+            raise BudgetError('Approval ledger unreadable; stop for manual reconciliation') from exc
+        if (not isinstance(grant, dict) or grant.get('format') != 'oxylabs-approval-v2'
+                or grant.get('authorization_sha256') != sha256(self.authorization_id.encode()).hexdigest()
+                or grant.get('cap') != self.cap or not isinstance(grant.get('attempts'), list)
+                or len(grant['attempts']) > self.cap):
+            raise BudgetError('Approval identity/cap/format mismatch; stop')
+        return grant
 
     def open_receipt(self, receipt: dict) -> None:
+        self._read_grant()
+
         try:
             _synced_json(self.receipt_file, receipt, exclusive=True)
         except FileExistsError as e:
@@ -71,15 +127,17 @@ class PaidBudget:
                 lock.write('LOCKED_REVIEW_REQUIRED_IF_CRASH\n')
                 lock.flush()
                 os.fsync(lock.fileno())
-            if self.ledger_file.exists():
+            if not self.ledger_file.is_file() or self.ledger_file.is_symlink():
+                raise BudgetError('Previously established approval ledger is missing; stop')
+            try:
                 ledger = json.loads(self.ledger_file.read_text(encoding='utf-8'))
-                if ledger.get('authorization_sha256') != sha256(self.authorization_id.encode()).hexdigest():
-                    raise BudgetError('Approval ledger identity mismatch')
-                if ledger.get('cap') != self.cap:
-                    raise BudgetError('Cannot change an existing authorization request cap')
-            else:
-                ledger = {'authorization_sha256': sha256(self.authorization_id.encode()).hexdigest(),
-                          'cap': self.cap, 'attempts': []}
+            except (ValueError, OSError, UnicodeError) as exc:
+                raise BudgetError('Damaged approval ledger; stop') from exc
+            if (ledger.get('format') != 'oxylabs-approval-v2'
+                    or ledger.get('authorization_sha256') != sha256(self.authorization_id.encode()).hexdigest()
+                    or ledger.get('cap') != self.cap
+                    or not isinstance(ledger.get('attempts'), list)):
+                raise BudgetError('Approval ledger identity/cap/format mismatch')
             if len(ledger['attempts']) >= self.cap:
                 raise BudgetError('Approval-wide paid request cap exhausted, including uncertain attempts')
             entry = {'attempt_sequence': len(ledger['attempts']) + 1,

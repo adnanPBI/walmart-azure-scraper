@@ -1,6 +1,6 @@
-# Walmart Azure Scraper v0.5.1 — authoritative GitHub release
+# Walmart Azure Scraper v0.5.2 — authoritative GitHub release
 
-**Status (2026-10-28): source + OFFLINE tested. No paid Classic Oxylabs request, genuine 500-product crawl, observed live recovery, or Azure execution has been approved or performed.** The default commands do not make paid calls. Public source: `https://github.com/adnanPBI/walmart-azure-scraper`; identify the exact tested commit in GitHub Actions. No separate ZIP is authoritative.
+**Status (2026-10-29): source + OFFLINE tested. No paid Classic Oxylabs request, genuine 500-product crawl, observed live recovery, or Azure execution has been approved or performed.** The default commands do not make paid calls. Public source: `https://github.com/adnanPBI/walmart-azure-scraper`; identify the exact tested commit in GitHub Actions. No separate ZIP is authoritative.
 
 ## Installation — Windows PowerShell (Python 3.12)
 
@@ -21,10 +21,11 @@ For the **offline-only browser fixture**: `python -m playwright install chromium
 
 ### Small Classic Web Scraper API diagnostic — zero paid requests
 
-The first useful payload is a **single primary product object** identified by a source-observed numeric Walmart ID (replace `1234567890` with a real, approved example; it is not an observed item). No Food category or second product job is silently added.
+The first useful request is a **single original Walmart product URL returning raw HTML**; both an observed numeric Walmart ID and its matching original URL are mandatory (replace `1234567890` with a real, approved example; it is not an observed item). No Food category or second product job is silently added.
 
 ```powershell
 python -m walmart_azure oxylabs-probe --store 3891 --product-id 1234567890 `
+  --url https://www.walmart.com/ip/item/1234567890 `
   --max-requests 1 --max-retries 0 --max-seconds 90 `
   --output output\diagnostics\classic-zero-cost.json
 ```
@@ -32,14 +33,14 @@ python -m walmart_azure oxylabs-probe --store 3891 --product-id 1234567890 `
 Produces **only** the proposed POST and a local receipt, with **zero network requests, credentials or cost**:
 
 ```json
-{"source":"walmart_product","query":"1234567890","parse":true}
+{"source":"walmart","url":"https://www.walmart.com/ip/item/1234567890","parse":false}
 ```
 
-The endpoint is `POST https://realtime.oxylabs.io/v1/queries` (Classic Basic Auth). The `--store 3891` argument is an **expected evidence scope, not a verified Classic API store/fulfillment selector**. Public examples do not establish an exact Waukegan #3891 PICKUP selection mechanism. A product response lacking original, inspectable page-selected store + product + pickup + price linkage is marked **unverified**, even with HTTP 200. Only a returned product URL from the provider is accepted; it is never replaced with the requested URL. `geo_location`/ZIP by itself cannot certify the selected store.
+The endpoint is `POST https://realtime.oxylabs.io/v1/queries` (Classic Basic Auth). The `--store 3891` argument is an **expected evidence scope, not a verified Classic API store/fulfillment selector**. Public examples do not establish an exact Waukegan #3891 PICKUP selection mechanism. The Walmart URL source returns raw HTML (unlike parsed-only walmart_product); a response lacking original, inspectable page-selected store + product + pickup + price linkage is marked **unverified**, even with HTTP 200. Only a returned product URL from the provider is accepted; it is never replaced with the requested URL. `geo_location`/ZIP by itself cannot certify the selected store.
 
-**No paid command should be run without fresh buyer authorization.** If separately approved, an operator must supply private `OXY_WSA_USERNAME`, `OXY_WSA_PASSWORD`, a unique documented `--authorization-id`, `--execute-billable`, and `--billing-approved`, with one request and no retries by default. A synchronized approval ledger reserves attempts on disk **before** dispatch (including possible charges or uncertain outcomes); a reused receipt path, concurrent lock, changed cap, or exhausted grant fails closed. An independent watchdog returns by the whole-run deadline on slow streams, marks uncertain attempts and does not silently retry them. Do not delete or reset budget receipts to claim fresh approval. See `docs/OXYLABS_CLASSIC_PLAN.md`.
+**No paid command should be run without fresh buyer authorization.** A paid call now requires one fixed existing absolute WALMART_OXYLABS_LEDGER_ROOT, and separately enrolled approval using oxylabs-enroll-approval --authorization-id <ID> --max-requests 1 --confirm-client-approval. Neither root nor grant is created by a paid probe; moving output paths cannot reset the cap. Missing or damaged accounting fails closed.  If separately approved, an operator must supply private `OXY_WSA_USERNAME`, `OXY_WSA_PASSWORD`, a unique documented `--authorization-id`, `--execute-billable`, and `--billing-approved`, with one request and no retries by default. The fixed-root approval ledger reserves attempts on disk **before** dispatch (including possible charges or uncertain outcomes); a reused receipt path, concurrent lock, changed cap, or exhausted grant fails closed. An independent watchdog returns by the whole-run deadline on slow streams, marks uncertain attempts and does not silently retry them. Do not delete or reset budget receipts to claim fresh approval. See `docs/OXYLABS_CLASSIC_PLAN.md`.
 
-**No production collector integration yet:** `oxylabs-probe` diagnoses a single Classic response; `run`, `discover-tree`, checkpoints and actual product collection still use the Playwright route. The Classic provider's store/PICKUP selection semantics, result shape and source-body evidence must be qualified before building an approved store-bound collector. Never treat the dry-run or synthetic responses as current Walmart prices.
+**No production collector integration yet:** `oxylabs-probe` diagnoses a single Classic response; `run`, `discover-tree`, checkpoints and actual product collection still use the Playwright route. The production Playwright runner also rejects available products whose price, PPM or offers are shipping-scoped even with a pickup option. The Classic provider's store/PICKUP selection semantics, result shape and source-body evidence must be qualified before building an approved store-bound collector. Never treat the dry-run or synthetic responses as current Walmart prices.
 
 ## Exactly scoped dataset and safety gates
 
@@ -55,7 +56,7 @@ The endpoint is `POST https://realtime.oxylabs.io/v1/queries` (Classic Basic Aut
 
 `python -m pytest -q` covers the client review regressions, including 600→599 retention, missing fresh canary, store100/page versus store3891/product mismatch, multi-store money ambiguity, missing returned URL, slow localhost streaming, durable budget reservation, clipped MULTIBUY, extended offers and trailing pack counts. GitHub Actions runs Ubuntu Python 3.11/3.12, Windows Python 3.12 and an isolated offline Chromium fixture. CI is **not live acceptance**.
 
-See `CLIENT_HANDOFF_README.md`, `docs/V051_ISSUE_TO_FIX_AND_TESTS.md`, `docs/OXYLABS_CLASSIC_PLAN.md`, and `docs/RELEASE_STATUS.json`. The `Instruction.txt` file agrees with this README; no older Instruction02 is part of this repository.
+See `CLIENT_HANDOFF_README.md`, `docs/V052_ISSUE_TO_FIX_AND_TESTS.md`, `docs/OXYLABS_CLASSIC_PLAN.md`, and `docs/RELEASE_STATUS.json`. The `Instruction.txt` file agrees with this README; no older Instruction02 is part of this repository.
 
 ## Next decision and target
 

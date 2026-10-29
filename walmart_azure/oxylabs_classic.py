@@ -39,27 +39,25 @@ class OxylabsProbeError(RuntimeError):
 
 
 def payloads(url: str = DEFAULT_URL, product_id: str = '', render: bool = False) -> list[dict]:
-    """One primary Walmart product job; no implicit Food/category request.
+    """Use the documented Walmart URL RAW HTML source, not parsed-only JSON.
 
-    `--store` is a diagnostic EXPECTATION, not a supported Classic store
-    selector. Explicit Waukegan PICKUP source proof remains mandatory.
+    No Classic exact-store pickup selector is assumed. An observed original
+    /ip/ URL and matching numeric ID are required before any paid dispatch.
     """
-    if url:
-        parsed = urlparse(url)
-        if (parsed.scheme != 'https' or parsed.hostname not in ('www.walmart.com','walmart.com')
-            or parsed.username or parsed.password or not parsed.path.startswith('/ip/')):
-            raise ValueError('Optional source URL must be an HTTPS Walmart product detail (/ip/) URL')
-    if not product_id:
-        return []
-    if not re.fullmatch(r'\d{5,20}', product_id):
-        raise ValueError('Product ID must be a 5-20 digit item ID observed from source')
-    if url:
-        match = re.search(r'/(\d{5,20})(?:[/?#]|$)', url)
-        if not match or match.group(1) != product_id:
-            raise ValueError('Product URL must refer to the requested product ID')
     if render:
-        raise ValueError('Rendering must be separately qualified for this Classic product source; no implicit render')
-    return [{'source': 'walmart_product', 'query': product_id, 'parse': True}]
+        raise ValueError('Rendering is not qualified/approved for this Classic source')
+    if not url:
+        return []
+    parsed = urlparse(url)
+    if (parsed.scheme != 'https' or parsed.hostname not in ('www.walmart.com', 'walmart.com')
+            or parsed.username or parsed.password or not parsed.path.startswith('/ip/')):
+        raise ValueError('Observed HTTPS Walmart product detail (/ip/) URL required')
+    if not re.fullmatch(r'\d{5,20}', product_id or ''):
+        raise ValueError('Observed numeric product ID required with the original URL')
+    match = re.search(r'/(\d{5,20})(?:/|$)', parsed.path)
+    if not match or match.group(1) != product_id:
+        raise ValueError('Observed source URL does not match requested product ID')
+    return [{'source': 'walmart', 'url': url, 'parse': False}]
 
 
 def _sanitize(value):
@@ -103,6 +101,102 @@ def _store_ids(value: object) -> set[str]:
         elif raw is not None and str(raw).strip():
             result.add(str(raw))
     return result
+
+
+def _money_binding(product: dict, store_id: str) -> tuple[bool, str]:
+    """Each price, direct PPM and offer must be pickup-scoped, not shipping.
+
+    With mixed pickup/shipping options, untagged monetary structures are
+    ambiguous, even when an unrelated pickup option exists.
+    """
+    def modes(value) -> set[str]:
+        if isinstance(value, dict):
+            out = set()
+            for key, part in value.items():
+                if key in ('type','method','fulfillment','fulfillmentType',
+                           'fulfillmentMethod','fulfillmentMode','fulfillmentChannel',
+                           'shippingMethod','deliveryType','deliveryMethod','channel'):
+                    out.update(modes(part))
+            return out
+        if isinstance(value, list):
+            out = set()
+            for part in value:
+                out.update(modes(part))
+            return out
+        if value is None:
+            return set()
+        word = str(value).upper().replace('-', '_').replace(' ', '_')
+        if 'PICKUP' in word or word in ('IN_STORE','INSTORE','CURBSIDE'):
+            return {'PICKUP'}
+        if any(x in word for x in ('SHIPPING','SHIP_TO','SHIPMENT','DELIVERY','MAIL_ORDER')):
+            return {'NON_PICKUP'}
+        return set()
+
+    product_mode = modes({k: product.get(k) for k in
+                          ('fulfillmentType','fulfillmentMethod','fulfillmentMode')})
+    if 'NON_PICKUP' in product_mode:
+        return False, 'Selected product fulfillment is SHIPPING/DELIVERY'
+    options = product.get('fulfillmentOptions') or nested(product,'fulfillment','options') or []
+    if isinstance(options,dict):
+        options = options.get('options') or [options]
+    if not isinstance(options,list) or not options:
+        return False, 'Missing explicit pickup fulfillment option'
+    option_modes = set()
+    for option in options:
+        if not isinstance(option,dict):
+            return False, 'Malformed fulfillment option'
+        option_mode = modes({k:option.get(k) for k in ('type','method','fulfillmentType')})
+        if not option_mode:
+            return False, 'Unknown fulfillment option method'
+        option_modes.update(option_mode)
+        ids = _store_ids(option)
+        if ids and ids != {store_id}:
+            return False, 'Conflicting store scope in fulfillment option'
+    if 'PICKUP' not in option_modes:
+        return False, 'No explicit product PICKUP option'
+    mixed = 'NON_PICKUP' in option_modes
+
+    def check(node, path: str, inherited: set[str]) -> tuple[bool,str]:
+        if isinstance(node,list):
+            for index, value in enumerate(node):
+                ok, reason = check(value,f'{path}[{index}]',inherited)
+                if not ok: return ok, reason
+            return True,''
+        if not isinstance(node,dict):
+            return True,''
+        ids = _store_ids(node)
+        if ids and ids != {store_id}:
+            return False, f'{path}: monetary store scope conflicts'
+        scope = modes({k:node.get(k) for k in (
+            'fulfillment','fulfillmentType','fulfillmentMethod','fulfillmentMode',
+            'fulfillmentChannel','shippingMethod','deliveryType','deliveryMethod',
+            'method','channel')})
+        scope.update(modes({'type':node.get('type')}))
+        if 'NON_PICKUP' in scope:
+            return False, f'{path}: SHIPPING/DELIVERY-specific monetary object'
+        effective = scope or inherited
+        if mixed and 'PICKUP' not in effective:
+            return False, f'{path}: ambiguous pickup versus shipping money scope'
+        for key,value in node.items():
+            if isinstance(value,(dict,list)) and key not in (
+                'fulfillment','fulfillmentType','fulfillmentMethod','fulfillmentMode',
+                'fulfillmentChannel','shippingMethod','deliveryType','deliveryMethod'):
+                ok,reason=check(value,f'{path}.{key}',effective)
+                if not ok:return ok,reason
+        return True,''
+
+    roots=('priceInfo','price','pricing','unitPrice','pricePerUnit','pricePerMeasure',
+           'ppm','promotions','promotionInfo','promotion','coupon','coupons','offers','offerInfo')
+    if not any(product.get(k) is not None for k in ('priceInfo','price','pricing')):
+        return False, 'No direct source price information'
+    for name in roots:
+        value=product.get(name)
+        if value is None: continue
+        if mixed and not isinstance(value,(dict,list)):
+            return False, f'{name}: unscoped monetary value on mixed pickup/shipping product'
+        ok, reason = check(value,name,set())
+        if not ok:return ok,reason
+    return True,''
 
 
 def _evaluate_source(content, expected_store: Store, target_url: str) -> dict:
@@ -164,25 +258,18 @@ def _evaluate_source(content, expected_store: Store, target_url: str) -> dict:
     if product_ids != {expected_store.id}:
         result['source_parse_error'] = 'Product store absent, multiple or mismatched'
         return result
-    # A per-store price/promo/fulfillment override that conflicts with the
-    # selected store cannot be declared price-bound to this response.
-    scopes = []
-    for value in (product.get('priceInfo'), product.get('price'), product.get('promotions'),
-                  product.get('promotionInfo'), product.get('coupon'), product.get('coupons'),
-                  product.get('fulfillmentOptions')):
-        if isinstance(value, list): scopes.extend(v for v in value if isinstance(v, dict))
-        elif isinstance(value, dict): scopes.append(value)
-    for value in scopes:
-        if _store_ids(value) and _store_ids(value) != {expected_store.id}:
-            result['source_parse_error'] = 'Price/offer/PICKUP store scope contradicts selected store'
-            return result
-    # Nested explicit store-scoped monetary options must not quietly override
-    # the selected page/product context.
-    for scope in (product.get('priceInfo'), product.get('promotions'), product.get('promotionInfo')):
-        if isinstance(scope, dict):
-            for nested_value in scope.values():
-                if isinstance(nested_value, dict) and _store_ids(nested_value) and _store_ids(nested_value) != {expected_store.id}:
-                    result['source_parse_error'] = 'Nested price/offer store scope conflicts'
+    money_ok, money_reason = _money_binding(product, expected_store.id)
+    if not money_ok:
+        result['source_parse_error'] = money_reason
+        return result
+    # A shipping-selected page cannot certify pickup prices.
+    for root in hydration_roots(data) if isinstance(content, str) else []:
+        for node in (root, nested(root,'data')):
+            loc = node.get('location') if isinstance(node,dict) else None
+            if isinstance(loc,dict):
+                selection = str(loc.get('fulfillmentType') or loc.get('fulfillmentMode') or '').upper()
+                if 'SHIPPING' in selection or 'DELIVERY' in selection:
+                    result['source_parse_error']='Page selected SHIPPING/DELIVERY, not PICKUP'
                     return result
     availability = pickup_availability(product)
     if availability not in ('AVAILABLE','UNAVAILABLE'):
@@ -230,9 +317,10 @@ def run_probe(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
     start = time.monotonic()
     deadline_at = start + max_seconds
     out = Path(output)
-    receipt = {'release':'0.5.1', 'provider':'Oxylabs Web Scraper API (Classic)',
+    receipt = {'release':'0.5.2', 'provider':'Oxylabs Web Scraper API (Classic)',
                'endpoint': ENDPOINT, 'selected_store':store.id, 'selected_zip':store.zipcode,
                'pickup_required':'PICKUP', 'store_selection_in_api_payload':'NOT_ESTABLISHED',
+               'source_contract':'walmart raw HTML URL; parse=false; no automatic rendering',
                'request_cap_total_including_retries':max_requests,
                'retry_cap_per_job':max_retries, 'deadline_seconds':max_seconds,
                'body_cap_bytes':max_body_bytes, 'render_requested':render,
@@ -243,16 +331,16 @@ def run_probe(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
                'started_utc':datetime.now(timezone.utc).isoformat(timespec='seconds')}
     if not execute_billable:
         receipt['status'] = ('DRY_RUN_NO_NETWORK_NO_COST' if jobs
-                             else 'NEEDS_PRODUCT_ID_NO_NETWORK_NO_COST')
-        receipt['note'] = ('No credential access or paid request. Product ID must come from an observed Walmart source. '
-                           'Classic product query has no confirmed Waukegan/PICKUP selector; response must independently prove local price.')
+                             else 'NEEDS_OBSERVED_PRODUCT_URL_NO_NETWORK_NO_COST')
+        receipt['note'] = ('No credential access or paid request. Product ID and original URL must come from an observed Walmart source. '
+                           'Classic raw HTML Walmart URL source has no confirmed Waukegan/PICKUP selector; response must independently prove local price.')
         out.parent.mkdir(parents=True,exist_ok=True)
         _synced_json(out, receipt)  # never a billing reservation
         return receipt
     if not billing_approved:
         raise OxylabsProbeError('Paid execution requires both --execute-billable and --billing-approved')
     if not jobs:
-        raise OxylabsProbeError('Provide --product-id for a primary product diagnostic before paid execution')
+        raise OxylabsProbeError('Provide --product-id AND --url for an observed primary product before paid execution')
     username = os.getenv('OXY_WSA_USERNAME','')
     password = os.getenv('OXY_WSA_PASSWORD','')
     if not username or not password:

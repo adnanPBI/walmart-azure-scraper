@@ -17,6 +17,7 @@ from .discovery import discover_candidates
 from .discovery_tree import discover_recursive
 from .diagnostic import diagnostic_probe
 from .oxylabs_classic import run_probe as oxylabs_classic_probe, review_saved_response, DEFAULT_URL
+from .paid_budget import PaidBudget
 
 
 class JSONFormatter(logging.Formatter):
@@ -136,7 +137,7 @@ def _validate(args) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog='walmart-crawl', description='Store-verified Azure Walmart scraper')
-    parser.add_argument('--version', action='version', version='walmart-crawl 0.5.1')
+    parser.add_argument('--version', action='version', version='walmart-crawl 0.5.2')
     subs = parser.add_subparsers(dest='command', required=True)
     inspect = subs.add_parser('inspect-categories', help='Inspect the supplied Walmart CSV; no store, Azure or network access needed')
     inspect.add_argument('--categories', default=os.getenv('CATEGORIES_CSV', 'config/categories.csv'))
@@ -192,8 +193,8 @@ def main() -> None:
     oxy = subs.add_parser('oxylabs-probe', help='Classic Web Scraper API: dry-run by default; paid only with two opt-ins')
     _add_configs(oxy)
     oxy.add_argument('--store', default='3891')
-    oxy.add_argument('--url', default=DEFAULT_URL)
-    oxy.add_argument('--product-id', default='', help='Required for a primary product job: Walmart numeric item ID (no default paid category request)')
+    oxy.add_argument('--url', default=DEFAULT_URL, help='Original Walmart /ip/ product URL required for raw HTML response; must match item ID')
+    oxy.add_argument('--product-id', default='', help='Source-observed product ID; also requires its original --url')
     oxy.add_argument('--render-html', action='store_true', help='Optional JS rendering; increases cost')
     oxy.add_argument('--output', default='output/diagnostics/oxylabs-classic-review.json')
     oxy.add_argument('--max-requests', type=int, default=1)
@@ -203,6 +204,10 @@ def main() -> None:
     oxy.add_argument('--execute-billable', action='store_true')
     oxy.add_argument('--billing-approved', action='store_true')
     oxy.add_argument('--authorization-id', default='', help='Client-approved paid budget ID; required only for billable execution')
+    enroll = subs.add_parser('oxylabs-enroll-approval', help='Manually register a pre-approved request cap in ONE durable ledger root; zero network')
+    enroll.add_argument('--authorization-id', required=True)
+    enroll.add_argument('--max-requests', type=int, default=1)
+    enroll.add_argument('--confirm-client-approval', action='store_true')
     oxyreview = subs.add_parser('oxylabs-review', help='Review a saved Classic response with ZERO network/billing')
     _add_configs(oxyreview)
     oxyreview.add_argument('--store', default='3891')
@@ -293,6 +298,14 @@ def main() -> None:
                 'buyer_acceptance':False, 'verified_products':result['genuine_products_verified'],
                 'receipt':args.output},indent=2))
             code = 0 if not args.execute_billable else (0 if result['status']=='SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE' else 2)
+        elif args.command == 'oxylabs-enroll-approval':
+            if not args.confirm_client_approval:
+                raise ValueError('No buyer authorization: --confirm-client-approval is required; no grant created')
+            ledger = PaidBudget.register_authorization(args.authorization_id,args.max_requests)
+            print(json.dumps({'status':'APPROVAL_ENROLLED_NO_NETWORK',
+                              'ledger':str(ledger),'attempt_cap':args.max_requests,
+                              'paid_requests_executed':0},indent=2))
+            code=0
         elif args.command == 'oxylabs-review':
             cfg=load_config(args.categories,args.stores)
             store=next((x for x in cfg.stores if x.id==args.store),None)

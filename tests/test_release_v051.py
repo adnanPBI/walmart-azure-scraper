@@ -12,6 +12,7 @@ import json
 import time
 import pytest
 from walmart_azure import oxylabs_classic as classic
+from walmart_azure.paid_budget import PaidBudget
 from walmart_azure.config import Config
 from walmart_azure.extract import get_weight, parse_deals, ParseError, find_ppm
 from walmart_azure.pipeline import run_store
@@ -81,10 +82,11 @@ def test_parsed_product_without_page_selection_never_claims_locality():
 
 
 def test_missing_returned_url_is_not_synthesized(tmp_path, monkeypatch):
+    PaidBudget.register_authorization('TEST-URL-MISSING',1)
     monkeypatch.setenv('OXY_WSA_USERNAME','fixture')
     monkeypatch.setenv('OXY_WSA_PASSWORD','fixture')
     session=MockSession(MockResponse(source_envelope(html_for(product()),url=None)))
-    result=classic.run_probe(store=WAUKEGAN,product_id=PID,output=str(tmp_path/'no-url.json'),
+    result=classic.run_probe(store=WAUKEGAN,product_id=PID,url=PRODUCT_URL,output=str(tmp_path/'no-url.json'),
         execute_billable=True,billing_approved=True,authorization_id='TEST-URL-MISSING',
         session_factory=lambda:session)
     assert result['status']=='UNVERIFIED_RESPONSE_STOP'
@@ -94,39 +96,42 @@ def test_missing_returned_url_is_not_synthesized(tmp_path, monkeypatch):
 
 
 def test_primary_product_only_and_default_without_id_no_network(tmp_path):
-    assert classic.payloads(product_id=PID)==[{'source':'walmart_product','query':PID,'parse':True}]
+    assert classic.payloads(product_id=PID)==[]
+    assert classic.payloads(url=PRODUCT_URL,product_id=PID)==[{'source':'walmart','url':PRODUCT_URL,'parse':False}]
     assert classic.payloads()==[]
     r=classic.run_probe(store=WAUKEGAN,output=str(tmp_path/'dry.json'))
-    assert r['status']=='NEEDS_PRODUCT_ID_NO_NETWORK_NO_COST' and r['requests_sent']==0
+    assert r['status']=='NEEDS_OBSERVED_PRODUCT_URL_NO_NETWORK_NO_COST' and r['requests_sent']==0
     with pytest.raises(classic.OxylabsProbeError,match='product-id'):
         classic.run_probe(store=WAUKEGAN,output=str(tmp_path/'paid.json'),execute_billable=True,
                           billing_approved=True)
 
 
 def test_ledger_reservation_is_durable_and_reused_approval_stops(tmp_path,monkeypatch):
+    PaidBudget.register_authorization('CLIENT-FIXTURE-GRANT-1',1)
     monkeypatch.setenv('OXY_WSA_USERNAME','fixture')
     monkeypatch.setenv('OXY_WSA_PASSWORD','fixture')
     approval='CLIENT-FIXTURE-GRANT-1'
     mock=MockSession(MockResponse({'error':'provider down'},503))
-    first=classic.run_probe(store=WAUKEGAN,product_id=PID,output=str(tmp_path/'first.json'),
+    first=classic.run_probe(store=WAUKEGAN,product_id=PID,url=PRODUCT_URL,output=str(tmp_path/'first.json'),
         execute_billable=True,billing_approved=True,authorization_id=approval,session_factory=lambda:mock)
     assert first['requests_sent']==1 and first['status']=='PROVIDER_5XX_STOP'
     ledger=Path(first['authorization_ledger'])
     assert ledger.exists() and len(json.loads(ledger.read_text())['attempts'])==1
     second_session=MockSession(MockResponse({'message':'should not dispatch'},503))
-    second=classic.run_probe(store=WAUKEGAN,product_id=PID,output=str(tmp_path/'second.json'),
+    second=classic.run_probe(store=WAUKEGAN,product_id=PID,url=PRODUCT_URL,output=str(tmp_path/'second.json'),
         execute_billable=True,billing_approved=True,authorization_id=approval,
         session_factory=lambda:second_session)
     assert second['status']=='BUDGET_RESERVATION_REFUSED_STOP'
     assert second['requests_sent']==0 and not second_session.calls
     assert len(json.loads(ledger.read_text())['attempts'])==1
     with pytest.raises(classic.OxylabsProbeError,match='already exists'):
-        classic.run_probe(store=WAUKEGAN,product_id=PID,output=str(tmp_path/'first.json'),
+        classic.run_probe(store=WAUKEGAN,product_id=PID,url=PRODUCT_URL,output=str(tmp_path/'first.json'),
             execute_billable=True,billing_approved=True,authorization_id=approval,
             session_factory=lambda:second_session)
 
 
 def test_slow_localhost_stream_has_independent_hard_return_deadline(tmp_path,monkeypatch):
+    PaidBudget.register_authorization('TEST-SLOW-STREAM-1',1)
     class SlowStream(BaseHTTPRequestHandler):
         def log_message(self,*args): pass
         def do_POST(self):
@@ -150,7 +155,7 @@ def test_slow_localhost_stream_has_independent_hard_return_deadline(tmp_path,mon
     monkeypatch.setenv('OXY_WSA_PASSWORD','fixture')
     try:
         start=time.monotonic()
-        r=classic.run_probe(store=WAUKEGAN,product_id=PID,output=str(tmp_path/'slow.json'),
+        r=classic.run_probe(store=WAUKEGAN,product_id=PID,url=PRODUCT_URL,output=str(tmp_path/'slow.json'),
             execute_billable=True,billing_approved=True,authorization_id='TEST-SLOW-STREAM-1',
             max_seconds=1)
         elapsed=time.monotonic()-start

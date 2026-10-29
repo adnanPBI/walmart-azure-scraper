@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "walmart-azure-scraper"
-version = "0.5.1"
+version = "0.5.2"
 description = "Fail-closed Walmart local pickup catalog scraper with Azure Container Apps Jobs and Blob checkpoints"
 readme = "README.md"
 requires-python = ">=3.11"

@@ -14,10 +14,12 @@ from walmart_azure.pipeline import run_store
 from walmart_azure.storage import LocalStorage
 from walmart_azure.browser import BrowserFailure
 from walmart_azure.oxylabs_classic import run_probe, payloads, OxylabsProbeError, _evaluate_source
+from walmart_azure.paid_budget import PaidBudget
 from test_pipeline import FakeBrowser, STORE, CFG, CATS
 from walmart_azure.config import Store
 
 WAUKEGAN=Store('3891','60085','Walmart Supercenter #3891','3900 Fountain Square Pl','Waukegan','IL')
+SOURCE_URL='https://www.walmart.com/ip/item/1234567890'
 
 
 def test_pack_preservation_not_derived_total():
@@ -154,15 +156,16 @@ def test_classic_payload_review_and_credentials_never_needed_offline(tmp_path,mo
     monkeypatch.delenv('OXY_WSA_USERNAME',raising=False)
     monkeypatch.delenv('OXY_WSA_PASSWORD',raising=False)
     path=tmp_path/'receipt.json'
-    r=run_probe(store=WAUKEGAN,product_id='1234567890',output=str(path))
+    r=run_probe(store=WAUKEGAN,product_id='1234567890',url=SOURCE_URL,output=str(path))
     assert r['status']=='DRY_RUN_NO_NETWORK_NO_COST' and r['requests_sent']==0
-    assert r['jobs_planned']==[{'source':'walmart_product','query':'1234567890','parse':True}]
+    assert r['jobs_planned']==[{'source':'walmart','url':SOURCE_URL,'parse':False}]
     assert json.loads(path.read_text())==r
     with pytest.raises(OxylabsProbeError,match='Paid execution'):
         run_probe(store=WAUKEGAN,output=str(tmp_path/'not-allowed.json'),execute_billable=True)
     with pytest.raises(ValueError,match='review caps'):
         run_probe(store=WAUKEGAN,output=str(tmp_path/'bad.json'),product_id='1234567890',max_requests=0)
-    assert payloads(product_id='1234567890')[0]=={'source':'walmart_product','query':'1234567890','parse':True}
+    assert payloads(product_id='1234567890')==[]
+    assert payloads(url=SOURCE_URL,product_id='1234567890')[0]=={'source':'walmart','url':SOURCE_URL,'parse':False}
 
 
 class MockResponse:
@@ -184,6 +187,7 @@ class MockSession:
 
 
 def test_classic_transport_is_bounded_sanitized_and_evidence_separated(tmp_path,monkeypatch):
+    PaidBudget.register_authorization('TEST-APPROVAL-123',1)
     monkeypatch.setenv('OXY_WSA_USERNAME','synthetic-account')
     monkeypatch.setenv('OXY_WSA_PASSWORD','TOPSECRET')
     product={'usItemId':'1234567890','name':'SYNTHETIC item 12 oz',
@@ -199,14 +203,14 @@ def test_classic_transport_is_bounded_sanitized_and_evidence_separated(tmp_path,
               'session_token':'do-not-store-this'}
     session=MockSession(MockResponse(response))
     path=tmp_path/'probe.json'
-    r=run_probe(store=WAUKEGAN,output=str(path),execute_billable=True,billing_approved=True,product_id='1234567890',authorization_id='TEST-APPROVAL-123',
+    r=run_probe(store=WAUKEGAN,output=str(path),execute_billable=True,billing_approved=True,product_id='1234567890',url=SOURCE_URL,authorization_id='TEST-APPROVAL-123',
                 session_factory=lambda:session,max_requests=1)
     assert r['requests_sent']==1
     assert r['source_shape_verified_records']==1
     assert r['genuine_products_verified']==0
     assert r['buyer_acceptance'] is False
     assert r['status']=='SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE'
-    assert len(session.calls)==1 and session.calls[0][1]['json']['source']=='walmart_product'
+    assert len(session.calls)==1 and session.calls[0][1]['json']['source']=='walmart'
     sanitized=Path(r['results'][0]['sanitized_response_body']).read_text()
     assert 'TOPSECRET' not in sanitized and 'do-not-store-this' not in sanitized
     assert '$0.25/oz' in sanitized and 'Limit 1' in sanitized and '2.50' in sanitized
@@ -215,11 +219,12 @@ def test_classic_transport_is_bounded_sanitized_and_evidence_separated(tmp_path,
 
 
 def test_classic_body_cap_and_auth_denial_stop_without_retry(tmp_path,monkeypatch):
+    PaidBudget.register_authorization('TEST-APPROVAL-123',2)
     monkeypatch.setenv('OXY_WSA_USERNAME','test')
     monkeypatch.setenv('OXY_WSA_PASSWORD','test')
     path=tmp_path/'denied.json'
     session=MockSession(MockResponse({'error':'auth refused'},401))
-    r=run_probe(store=WAUKEGAN,output=str(path),execute_billable=True,billing_approved=True,product_id='1234567890',authorization_id='TEST-APPROVAL-123',
+    r=run_probe(store=WAUKEGAN,output=str(path),execute_billable=True,billing_approved=True,product_id='1234567890',url=SOURCE_URL,authorization_id='TEST-APPROVAL-123',
                 session_factory=lambda:session,max_requests=2,max_retries=1)
     assert r['status']=='AUTH_DENIED_STOP' and r['requests_sent']==1
     assert len(session.calls)==1
@@ -266,11 +271,12 @@ def test_offline_classic_saved_response_never_claims_live(tmp_path):
 
 
 def test_classic_provider_server_error_no_success(tmp_path,monkeypatch):
+    PaidBudget.register_authorization('TEST-APPROVAL-123',1)
     monkeypatch.setenv('OXY_WSA_USERNAME','mockuser')
     monkeypatch.setenv('OXY_WSA_PASSWORD','mockpass')
     session=MockSession(MockResponse({'message':'unavailable'},503))
     r=run_probe(store=WAUKEGAN,output=str(tmp_path/'servererror.json'),
-        execute_billable=True,billing_approved=True,product_id='1234567890',authorization_id='TEST-APPROVAL-123',session_factory=lambda:session,max_requests=1)
+        execute_billable=True,billing_approved=True,product_id='1234567890',url=SOURCE_URL,authorization_id='TEST-APPROVAL-123',session_factory=lambda:session,max_requests=1)
     assert r['status']=='PROVIDER_5XX_STOP'
     assert r['source_shape_verified_records']==0
 
@@ -299,33 +305,36 @@ async def test_out_of_stock_displayed_price_cannot_count_as_current_pickup_price
 
 
 def test_classic_rejects_source_redirect_with_same_http_200(tmp_path,monkeypatch):
+    PaidBudget.register_authorization('TEST-APPROVAL-123',1)
     monkeypatch.setenv('OXY_WSA_USERNAME','mockuser')
     monkeypatch.setenv('OXY_WSA_PASSWORD','mockpass')
     response={'results':[{'status_code':200,'url':'https://www.walmart.com/',
                          'content':'<html>homepage 200 but no requested category</html>'}]}
-    r=run_probe(store=WAUKEGAN,output=str(tmp_path/'redirect.json'),execute_billable=True,product_id='1234567890',authorization_id='TEST-APPROVAL-123',
+    r=run_probe(store=WAUKEGAN,output=str(tmp_path/'redirect.json'),execute_billable=True,product_id='1234567890',url=SOURCE_URL,authorization_id='TEST-APPROVAL-123',
                 billing_approved=True,session_factory=lambda:MockSession(MockResponse(response)))
     assert r['status']=='UNVERIFIED_RESPONSE_STOP'
     assert r['results'][0]['error']=='RETURNED_PRODUCT_URL_ID_MISMATCH'
 
 
 def test_classic_rejects_captcha_even_with_provider_200(tmp_path,monkeypatch):
+    PaidBudget.register_authorization('TEST-APPROVAL-123',1)
     monkeypatch.setenv('OXY_WSA_USERNAME','mockuser')
     monkeypatch.setenv('OXY_WSA_PASSWORD','mockpass')
     response={'results':[{'status_code':200,'url':'https://www.walmart.com/ip/item/1234567890',
                           'content':'<html><body>Robot or human? CAPTCHA required</body></html>'}]}
-    r=run_probe(store=WAUKEGAN,output=str(tmp_path/'challenge.json'),execute_billable=True,product_id='1234567890',authorization_id='TEST-APPROVAL-123',
+    r=run_probe(store=WAUKEGAN,output=str(tmp_path/'challenge.json'),execute_billable=True,product_id='1234567890',url=SOURCE_URL,authorization_id='TEST-APPROVAL-123',
                 billing_approved=True,session_factory=lambda:MockSession(MockResponse(response)))
     assert r['status']=='RETAILER_ACCESS_STOP'
     assert r['results'][0]['error']=='RETAILER_CHALLENGE_IN_SOURCE_BODY'
 
 
 def test_classic_response_size_cap_stops(tmp_path,monkeypatch):
+    PaidBudget.register_authorization('TEST-APPROVAL-123',1)
     monkeypatch.setenv('OXY_WSA_USERNAME','mockuser')
     monkeypatch.setenv('OXY_WSA_PASSWORD','mockpass')
     response={'results':[{'content':'x'*80000,'status_code':200,
                           'url':'https://www.walmart.com/ip/item/1234567890'}]}
-    r=run_probe(store=WAUKEGAN,output=str(tmp_path/'oversize.json'),execute_billable=True,product_id='1234567890',authorization_id='TEST-APPROVAL-123',
+    r=run_probe(store=WAUKEGAN,output=str(tmp_path/'oversize.json'),execute_billable=True,product_id='1234567890',url=SOURCE_URL,authorization_id='TEST-APPROVAL-123',
                 billing_approved=True,max_body_bytes=32768,
                 session_factory=lambda:MockSession(MockResponse(response)))
     assert r['status']=='TRANSPORT_OR_LIMIT_STOP_RESERVED_OUTCOME_UNCERTAIN'
