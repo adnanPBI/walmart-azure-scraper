@@ -1,4 +1,4 @@
-# Walmart Azure Scraper v0.5.5 — client reproduction (2026-10-30)
+# Walmart Azure Scraper v0.5.6 — client reproduction (2026-10-30)
 
 The **exact GitHub commit SHA plus matching successful Actions run** supersede
 older ZIPs and outdated documents. All evidence is offline until separately
@@ -31,7 +31,7 @@ then `python -m pytest tests/test_browser_e2e_offline.py -v`.
   --output output\diagnostics\classic-product-dryrun.json
 ```
 
-Great Value Whole Vitamin D Milk, Gallon; original Walmart URL `https://www.walmart.com/ip/10450114` (product ID `10450114`, publicly observed 2026-10-30). This identifies a genuine retailer listing, NOT verified Waukegan #3891 availability or pickup price. No request is sent.
+Great Value Whole Vitamin D Milk, Gallon; original Walmart URL `https://www.walmart.com/ip/10450114` (product ID `10450114`, nominated by the client on 2026-10-30; not independently retailer-verified). This is a client-nominated product candidate, NOT independently verified as currently available for Waukegan #3891 PICKUP or priced there. No request is sent.
 Exact payload:
 `{"source":"walmart_product","product_id":"10450114","store_id":"3891","fulfillment_type":"pickup","parse":false,"render":""}`.
 
@@ -41,7 +41,7 @@ and independent selected page/product/price proof and actual returned job ID
 and URL, otherwise strict qualification FAILS.
 
 This focused patch requires saved receipts to carry a finished marker and
-`receipt_finalized=true` before interpreting a terminal positive status;
+`receipt_finalized=true` and a completed caller-owned final commit before interpreting a positive status. A daemon only stages unqualified receipts; a timeout must never be followed by late success;
 an interrupted file save remains pending/failed. The expired watchdog makes
 zero blocking filesystem reads.
 

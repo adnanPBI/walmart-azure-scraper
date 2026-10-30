@@ -355,16 +355,24 @@ def _save_incomplete_receipt(budget: PaidBudget, receipt: dict) -> None:
 
 def _publish_terminal_receipt(out: Path, receipt: dict, deadline_at: float,
                               cancelled: Event) -> bool:
-    """Stage/fsync complete terminal bytes before a supervised atomic rename.
+    """Stage a FAIL-CLOSED receipt; never write a positive status from a daemon.
 
-    No potentially blocking I/O follows the promotion. A crash before it
-    leaves the existing non-positive receipt and consumed ledger reservation.
+    Critical v0.5.6 ownership rule: this function runs in an interruptible
+    daemon and therefore is forbidden to publish success to the canonical
+    receipt. Even if os.replace stalls AFTER its last cancellation check,
+    a late replacement can only write an unqualified PENDING snapshot.
+    The supervising run_probe caller alone may later commit terminal success,
+    after joining this worker before the deadline.
+
+    The .terminal.tmp extension is deliberately retained for the client's
+    before/after-os.replace fault-injection test.
     """
+    pending = _incomplete_snapshot(receipt)
     tmp=out.with_name(out.name+'.'+uuid.uuid4().hex+'.terminal.tmp')
     promoted=False
     try:
         with tmp.open('x',encoding='utf-8') as stream:
-            json.dump(receipt,stream,indent=2,ensure_ascii=False)
+            json.dump(pending,stream,indent=2,ensure_ascii=False)
             stream.flush()
             os.fsync(stream.fileno())
         if os.name=='posix':
@@ -373,14 +381,50 @@ def _publish_terminal_receipt(out: Path, receipt: dict, deadline_at: float,
             finally: os.close(fd)
         if cancelled.is_set() or time.monotonic()>=deadline_at:
             return False
+        # This swap is always UNQUALIFIED even if it returns after timeout.
         os.replace(tmp,out)
         promoted=True
-        return True
+        return not (cancelled.is_set() or time.monotonic()>=deadline_at)
     finally:
         if not promoted:
             try: tmp.unlink(missing_ok=True)
             except OSError: pass
 
+
+def _commit_positive_receipt(out: Path, receipt: dict, deadline_at: float,
+                             cancelled: Event) -> bool:
+    """Only the *supervising caller* may expose a completed positive receipt.
+
+    All daemon I/O has joined before entry. A slow or failing final write cannot
+    cause a late background promotion. An over-deadline commit is synchronously
+    superseded with a fail-closed receipt BEFORE returning failure.
+    """
+    tmp=out.with_name(out.name+'.'+uuid.uuid4().hex+'.supervisor.tmp')
+    replaced=False
+    try:
+        if cancelled.is_set() or time.monotonic()>=deadline_at:
+            return False
+        with tmp.open('x',encoding='utf-8') as stream:
+            json.dump(receipt,stream,indent=2,ensure_ascii=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if cancelled.is_set() or time.monotonic()>=deadline_at:
+            return False
+        # Exactly one actor has write authority for POSITIVE terminal bytes:
+        # this same supervising thread. It cannot later return an earlier
+        # watchdog failure while a writer is still in flight.
+        os.replace(tmp,out)
+        replaced=True
+        if cancelled.is_set() or time.monotonic()>=deadline_at:
+            failure=deepcopy(receipt)
+            _invalidate_timed_out_proof(failure)
+            _synced_json(out,_incomplete_snapshot(failure))
+            return False
+        return True
+    finally:
+        if not replaced:
+            try: tmp.unlink(missing_ok=True)
+            except OSError: pass
 
 def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
               render: bool = False, output: str, execute_billable: bool = False,
@@ -405,7 +449,7 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
         if (_cancelled is not None and _cancelled.is_set()) or time.monotonic() >= deadline_at:
             raise RequestDeadlineExceeded('Whole-run deadline expired during '+stage)
     out = Path(output)
-    receipt = {'release':'0.5.5', 'provider':'Oxylabs Web Scraper API (Classic)',
+    receipt = {'release':'0.5.6', 'provider':'Oxylabs Web Scraper API (Classic)',
                'endpoint': ENDPOINT, 'selected_store':store.id, 'selected_zip':store.zipcode,
                'pickup_required':'PICKUP', 'store_selection_in_api_payload':'REQUESTS_3891_PICKUP_REQUIRES_RETURNED_PROOF',
                'source_contract':'walmart_product id+store_id+fulfillment_type; parse=false; render empty',
@@ -608,7 +652,7 @@ def run_probe(**kwargs) -> dict:
     state={}
 
     def deadline_failure(note='Inspect the fixed approval ledger for reserved/uncertain attempts; no automatic retry.'):
-        return {'release':'0.5.5','status':'DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN',
+        return {'release':'0.5.6','status':'DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN',
                 'deadline_exceeded':True,'source_shape_verified_records':0,
                 'genuine_products_verified':0,'buyer_acceptance':False,
                 'receipt_finalized':False,'requests_sent':progress['requests_sent'],
@@ -631,8 +675,10 @@ def run_probe(**kwargs) -> dict:
     if 'error' in state:
         raise state['error']
 
-    # Source checks, session cleanup, and all provisional fsyncs have completed.
-    # Positive terminal status is forbidden in the core worker.
+    # Source checks, session cleanup and all provisional fsyncs finished.
+    # Background finalizer may ONLY stage the UNQUALIFIED receipt. The
+    # supervising caller alone owns positive publication and does not return
+    # a timeout while a background positive publisher is still running.
     final=state['result']
     final['receipt_finalized']=True
     final['finalization_state']='COMPLETE'
@@ -643,14 +689,35 @@ def run_probe(**kwargs) -> dict:
                 Path(kwargs['output']),final,deadline_at,cancelled)
         except BaseException as exc:
             publish['error']=exc
-    finisher=Thread(target=finalize,name='classic-terminal-receipt-publisher',daemon=True)
+    finisher=Thread(target=finalize,name='classic-pending-receipt-stager',daemon=True)
     finisher.start()
     finisher.join(max(0.0,deadline_at-time.monotonic()))
-    if finisher.is_alive() or not publish.get('ok',False):
+    if finisher.is_alive() or not publish.get('ok',False) or time.monotonic()>=deadline_at:
         cancelled.set()
-        return deadline_failure('Terminal receipt publication incomplete/uncertain; review the pending receipt and fixed ledger; no automatic retry.')
+        return deadline_failure(
+            'Safe pending receipt staging incomplete/uncertain; the durable ledger remains spent. No automatic retry.')
+    # This final write runs synchronously on the caller, NOT a daemon.
+    # A delayed terminal.tmp replacement after a timed-out return can never
+    # overwrite a successful verdict because no success has been committed.
+    try:
+        committed=_commit_positive_receipt(Path(kwargs['output']),
+                                           final,deadline_at,cancelled)
+    except BaseException:
+        cancelled.set()
+        # If an atomic replacement raised after partially completing, ensure
+        # the canonical receipt cannot be interpreted as success.
+        try:
+            repaired=deepcopy(final)
+            _invalidate_timed_out_proof(repaired)
+            _synced_json(Path(kwargs['output']),_incomplete_snapshot(repaired))
+        except OSError:
+            pass  # Ledger remains authoritative for paid attempts.
+        raise
+    if not committed:
+        cancelled.set()
+        return deadline_failure(
+            'Positive commit missed deadline; final receipt left unqualified and allowance remains spent.')
     return final
-
 
 def review_saved_response(input_file: str, output_file: str, store: Store) -> dict:
     """Zero-network reader for a client-supplied Classic response JSON envelope.

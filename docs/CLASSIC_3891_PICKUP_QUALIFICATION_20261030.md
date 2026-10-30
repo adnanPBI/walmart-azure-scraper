@@ -1,4 +1,4 @@
-# v0.5.5 Classic Oxylabs / Walmart #3891 PICKUP qualification
+# v0.5.6 Classic Oxylabs / Walmart #3891 PICKUP qualification
 
 **2026-10-30.** Source/offline QA only; **zero authorized or executed paid calls**,
 zero genuine products, no Azure execution. This replaces the older 2026-10-29
@@ -20,7 +20,7 @@ unlocalized Walmart-URL plan.
 }
 ```
 
-Great Value Whole Vitamin D Milk, Gallon; original Walmart URL `https://www.walmart.com/ip/10450114` (product ID `10450114`, publicly observed 2026-10-30). This identifies a genuine retailer listing, NOT verified Waukegan #3891 availability or pickup price.
+Great Value Whole Vitamin D Milk, Gallon; original Walmart URL `https://www.walmart.com/ip/10450114` (product ID `10450114`, client nominated 2026-10-30; retailer status not independently authenticated). This is the buyer-nominated product for diagnostic review, not an independently verified live Waukegan #3891 PICKUP product or price.
 
 The product ID must be observed in a genuine Walmart primary product URL
 `https://www.walmart.com/ip/<slug>/<id>`; supply both ID and URL to the CLI
@@ -120,10 +120,37 @@ Timeout at **any phase** supersedes positive flags and count with
   positive pagination-end evidence; production Classic collector integration;
   observed live interruption/recovery; Azure execution and twice-weekly scheduling.
 
-**Focused correction checkpoint:** **2026-10-30 18:00 Asia/Dhaka
-(07:00 US Central, CDT)**: v0.5.5 bug fix, injected file-I/O regressions,
+**Previous conditional checkpoint:** **2026-10-30 18:00 Asia/Dhaka
+(07:00 US Central, CDT)**: v0.5.6 bug fix, injected file-I/O regressions,
 and GitHub CI results; paid diagnostic remains separately gated.
 One-product live assessment at that checkpoint is **conditional on separate
 authorization and genuine observed ID**. The 5–7 working-day remainder is a conditional planning range **after**
 Classic connectivity and local price evidence AND full category/subcategory
 and pagination coverage qualify. It does not begin with this offline patch.
+
+
+## v0.5.6 post-checkpoint terminal race correction
+
+The client independently injected pauses at the exact atomic rename whose source
+ends in `.terminal.tmp`, both **before** and **after** the real swap while the
+caller's one-second deadline expired. A background daemon must not be able to
+publish `STRICT_SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE` after that failure.
+
+The background publisher now stages **only** a scrubbed PENDING receipt, even
+when its actual `os.replace` is delayed. Its return is joined by the
+supervising caller within the remaining deadline. **Only the caller** may
+synchronously replace the canonical receipt with terminal positive status,
+after the background staging has completed. A timed-out stage can never
+publish success later. The fixed pre-dispatch allowance remains consumed.
+
+Regression entrypoint: `python -m pytest -q tests/test_release_v055.py tests/test_release_v056.py`.
+CI evidence must be checked against the exact authoritative GitHub commit.
+Normal positive synthetic runs retain a matching saved and returned receipt;
+no offline case proves a genuine Walmart price. The exact one-request,
+zero-retry, 90-second, 2,000,000-byte, `render=""` scope remains unchanged.
+
+**Checkpoint date/time zone:** 2026-10-30 (Asia/Dhaka, UTC+06:00),
+following the original 18:00 checkpoint. Live account testing requires an
+explicit new approval, not included here. Full live work remains separately
+estimated at 5–7 working days **after** connectivity and category coverage
+qualification, and that estimate is not a committed delivery date.

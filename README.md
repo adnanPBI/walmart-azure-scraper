@@ -1,4 +1,4 @@
-# Walmart Azure Scraper v0.5.5 — authoritative GitHub source (2026-10-30)
+# Walmart Azure Scraper v0.5.6 — authoritative GitHub source (2026-10-30)
 
 **Status:** Implementation and OFFLINE regression qualification only. No authorized or
 executed paid Classic Oxylabs requests, no genuine 500-product run, no verified
@@ -18,7 +18,7 @@ the source of truth, not the older v0.5.0 ZIP.
 - Complete volume/digital terms and clipping precedence; family/bulk/multipack
   source labels; no silent promotion-terms truncation.
 - Classic Oxylabs single-product dry-run and offline source qualification.
-  **v0.5.4–v0.5.5** changes the proposed request to the documented localized
+  **v0.5.4–v0.5.6** changes the proposed request to the documented localized
   `walmart_product` payload and uses the SAME strict source gate in the paid
   response path. Shipping/default-store prices cannot be labeled #3891 PICKUP.
 - A fixed durable approval ledger, 1-attempt pre-dispatch reservation, strict
@@ -50,16 +50,23 @@ offline test logs. These do NOT constitute observed retailer/paid/Azure tests.
 
 ## Classic single-product zero-cost diagnostic
 
-**v0.5.5 finalization guarantee:** worker saves are always non-positive
-`FINALIZATION_PENDING_RESERVED_OUTCOME_UNCERTAIN` or failed, with zero
-provisionally verified records and `receipt_finalized=false`. Only after
-cleanup plus provisional fsync finish, a separately watchdog-bounded terminal
-promotion may publish `receipt_finalized=true`, `finalization_state=COMPLETE`
-and `finished_utc`. On timeout the watchdog performs **no receipt reads**;
-the fixed grant ledger conservatively consumes the reserved attempt.
-A saved receipt missing terminal markers must never be counted as successful.
+**v0.5.6 finalization fence:** ALL worker and daemon writes to the
+canonical receipt are fail-closed, with `PENDING` state, zero shape counts,
+`receipt_finalized=false` and no terminal timestamp. In particular, even
+a delayed `.terminal.tmp` `os.replace` can only replace the receipt with
+another unqualified snapshot. The sole positive writer is the **supervising
+caller**, which first joins the staging worker before the deadline and then
+commits the completed receipt synchronously. A timed-out caller may leave a
+pending/failed file; neither it nor a delayed daemon can turn that file
+positive afterward. Pre-dispatch paid reservations are never reclaimed.
 
-
+Client's exact before/after-`os.replace` injected pauses and the normal
+saved==returned positive control are covered by offline v0.5.6 regressions.
+The normal OS filesystem commit is synchronous in the supervising caller;
+as with any synchronous filesystem call, an indefinitely blocked local OS
+write cannot itself be preempted by a Python watchdog. This tradeoff removes
+the dangerous post-timeout late-success race instead of hiding it with a
+second cancellable daemon publisher. An offline PASS is **not** live evidence.
 
 ```powershell
 python -m walmart_azure oxylabs-probe --store 3891 `
@@ -70,9 +77,7 @@ python -m walmart_azure oxylabs-probe --store 3891 `
   --output output\diagnostics\classic-product-dryrun.json
 ```
 
-**10450114 and its URL are synthetic placeholders**. The CLI requires a
-genuine source-observed /ip/ URL+matching numeric ID before a real request.
-This command is DRY RUN: no network or cost, no credentials.
+**Product ID 10450114 and https://www.walmart.com/ip/10450114 were nominated by the client** as Great Value Whole Vitamin D Milk, Gallon. They are **not synthetic placeholders**. Current #3891 PICKUP availability, price and product response have **not** been independently verified. This command is a zero-network, zero-cost dry run; it does not use credentials.
 
 The proposed Classic API payload is exactly:
 
@@ -100,7 +105,7 @@ response parsing, evidence writing and close. A slow phase returns a
 conservative `DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN`; reserved attempts
 remain permanently spent. No automatic retry and no schedule.
 
-Read [complete v0.5.5 Classic request/response qualification and cost plan](docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md)
+Read [complete v0.5.6 Classic request/response qualification and cost plan](docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md)
 and [client handoff](CLIENT_HANDOFF_README.md).
 
 ## Outstanding acceptance gaps
@@ -114,8 +119,6 @@ observed live recovery, Azure deployment and twice-weekly scheduling are
 NOT qualified. A single priced diagnostic has NOT changed the unavailable-
 and-later-missing-item retention requirement.
 
-**Milestone:** October 30, 2026 at 18:00 Asia/Dhaka: code/CI and conditional
-one-product compatibility review only, NOT full delivery. A live assessment requires separate buyer approval, privately managed
-credentials and confirmation of provider/account compatibility. A genuine
-product ID is now nominated (10450114), but not store-3891 verified. Remaining live/production work was estimated at
+**Checkpoint:** The October 30, 2026 at 18:00 Asia/Dhaka (UTC+06:00) checkpoint has passed. v0.5.6 focuses on the subsequent verified source/CI correction. One-product Classic compatibility remains conditional on **separate client authorization** and account qualification; it is NOT a live-result guarantee. A live assessment requires separate buyer approval, privately managed
+credentials and confirmation of provider/account compatibility. The client has nominated the product ID (10450114), but not store-3891 verified. Remaining live/production work was estimated at
 5–7 working days **after** connectivity and category coverage qualification.

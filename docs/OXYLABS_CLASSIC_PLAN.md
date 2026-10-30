@@ -1,4 +1,4 @@
-# Classic Oxylabs diagnostic plan — v0.5.4 (2026-10-30)
+# Classic Oxylabs diagnostic plan — v0.5.6 (2026-10-30)
 
 **Current authoritative plan:** [CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md](CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md).
 
@@ -14,3 +14,5 @@ No paid credentials, spending, rendering, Azure deployment or schedule is
 approved. First diagnostic is one observed product, one request, zero retries,
 90 seconds absolute runtime, 2 MB response. Detailed exact commands, source
 proof requirements, budget policy, limits and risks are in the linked plan.
+
+Terminal-race protection updated in v0.5.6: background staging is fail-closed; caller-only positive publication, with exact pre/post atomic-replace regressions. No paid diagnostic authorized.
