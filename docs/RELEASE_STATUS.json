@@ -1,5 +1,5 @@
 {
-  "version": "0.5.4",
+  "version": "0.5.5",
   "date": "2026-10-30",
   "source": "GitHub commit is authoritative; verify exact CI run",
   "offline_tests": "local tests passed; see current CI for exact count",
@@ -9,7 +9,7 @@
   "complete_subcategories_verified": false,
   "live_recovery_verified": false,
   "client_authorization": "NOT_GRANTED",
-  "next_milestone": "2026-10-30 18:00 Asia/Dhaka CODE/CI + conditional live one-product diagnostic only; no paid call approved",
+  "next_milestone": "2026-10-30 18:00 Asia/Dhaka (UTC+06:00), focused finalization patch + offline GitHub CI; buyer approval needed for paid probe",
   "classic_payload": "walmart_product(product_id,store_id=3891,fulfillment_type=pickup,parse=false,render='')",
   "paid_approval_root": "WALMART_OXYLABS_LEDGER_ROOT required; never receipt-folder-derived",
   "pending_local_pickup_selection": true,
@@ -18,5 +18,10 @@
   "classic_collector_integration": "NOT_QUALIFIED",
   "classic_store_selection": "DOCUMENTED_PARAMETER_NOT_LIVE_VERIFIED",
   "strict_source_shape_genuine_count": 0,
-  "whole_run_deadline": "bounded watchdog + bounded cleanup; late results fail closed"
+  "whole_run_deadline": "supervised bounded core + atomic terminal promotion; no blocking receipt reads after timeout",
+  "classic_candidate_product_id": "10450114",
+  "classic_candidate_original_url": "https://www.walmart.com/ip/10450114",
+  "classic_candidate_store_3891_pickup": "NOT_VERIFIED",
+  "terminal_receipt_contract": "finalization_state=COMPLETE + receipt_finalized=true + finished_utc; interim receipts always non-positive",
+  "five_to_seven_working_days": "CONDITIONAL_AFTER_CLASSIC_CONNECTIVITY_AND_CATEGORY_COVERAGE_QUALIFIED"
 }

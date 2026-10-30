@@ -1,4 +1,4 @@
-# v0.5.4 Classic Oxylabs / Walmart #3891 PICKUP qualification
+# v0.5.5 Classic Oxylabs / Walmart #3891 PICKUP qualification
 
 **2026-10-30.** Source/offline QA only; **zero authorized or executed paid calls**,
 zero genuine products, no Azure execution. This replaces the older 2026-10-29
@@ -19,6 +19,8 @@ unlocalized Walmart-URL plan.
   "render": ""
 }
 ```
+
+Great Value Whole Vitamin D Milk, Gallon; original Walmart URL `https://www.walmart.com/ip/10450114` (product ID `10450114`, publicly observed 2026-10-30). This identifies a genuine retailer listing, NOT verified Waukegan #3891 availability or pickup price.
 
 The product ID must be observed in a genuine Walmart primary product URL
 `https://www.walmart.com/ip/<slug>/<id>`; supply both ID and URL to the CLI
@@ -44,15 +46,16 @@ Copy-Item config\stores.example.yaml config\stores.yaml
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m walmart_azure oxylabs-probe `
   --store 3891 `
-  --product-id 1234567890 `
-  --url https://www.walmart.com/ip/item/1234567890 `
+  --product-id 10450114 `
+  --url https://www.walmart.com/ip/10450114 `
   --max-requests 1 --max-retries 0 --max-seconds 90 `
   --max-body-bytes 2000000 `
   --output output\diagnostics\classic-product-dryrun.json
 ```
 
-`1234567890` and the example URL are **synthetic command placeholders**.
-This run is DRY RUN (no --execute-billable, no auth, no cost).
+The product ID and URL above are public retailer observations, not
+independent pickup-price proof for #3891. This is a zero-network DRY RUN
+(no --execute-billable, no authorization, no retries, no render, no cost).
 
 ## Safeguards for an explicitly authorized future one-product call
 
@@ -66,6 +69,11 @@ This run is DRY RUN (no --execute-billable, no auth, no cost).
   approval has been given.
 - A stall in transport, strict parsing, persistence or session cleanup
   returns a **deadline/uncertain** result, NOT a successful qualification.
+- Worker saves are always unfinished/unqualified. Only a supervised terminal
+  promotion after full cleanup and provisional fsync may mark a receipt as
+  `receipt_finalized=true`, `finalization_state=COMPLETE` and `finished_utc`.
+  Expired watchdogs never read receipts, and a missing terminal marker
+  means PENDING/FAIL, not source-shape qualification.
   If the process is interrupted, treat the reserved attempt as spent;
   do not issue automatic retries.
 - No scheduled job, Azure deployment, general category scrape, renderer or
@@ -112,9 +120,10 @@ Timeout at **any phase** supersedes positive flags and count with
   positive pagination-end evidence; production Classic collector integration;
   observed live interruption/recovery; Azure execution and twice-weekly scheduling.
 
-**Milestone:** by **2026-10-30 18:00 Asia/Dhaka (07:00 US Central)**,
-v0.5.4 code, focused offline regressions and GitHub CI can be presented.
+**Focused correction checkpoint:** **2026-10-30 18:00 Asia/Dhaka
+(07:00 US Central, CDT)**: v0.5.5 bug fix, injected file-I/O regressions,
+and GitHub CI results; paid diagnostic remains separately gated.
 One-product live assessment at that checkpoint is **conditional on separate
-authorization and genuine observed ID**. The 5–7 working-day remaining
-live/production estimate begins only after connectivity AND category coverage
-qualification; it does not begin with this source-only release.
+authorization and genuine observed ID**. The 5–7 working-day remainder is a conditional planning range **after**
+Classic connectivity and local price evidence AND full category/subcategory
+and pagination coverage qualify. It does not begin with this offline patch.

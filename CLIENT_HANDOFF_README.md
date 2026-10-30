@@ -1,4 +1,4 @@
-# Walmart Azure Scraper v0.5.4 — client reproduction (2026-10-30)
+# Walmart Azure Scraper v0.5.5 — client reproduction (2026-10-30)
 
 The **exact GitHub commit SHA plus matching successful Actions run** supersede
 older ZIPs and outdated documents. All evidence is offline until separately
@@ -24,21 +24,26 @@ then `python -m pytest tests/test_browser_e2e_offline.py -v`.
 
 ```powershell
 .\.venv\Scripts\python.exe -m walmart_azure oxylabs-probe `
-  --store 3891 --product-id 1234567890 `
-  --url https://www.walmart.com/ip/item/1234567890 `
+  --store 3891 --product-id 10450114 `
+  --url https://www.walmart.com/ip/10450114 `
   --max-requests 1 --max-retries 0 --max-seconds 90 `
   --max-body-bytes 2000000 `
   --output output\diagnostics\classic-product-dryrun.json
 ```
 
-The fake ID+URL above are only CLI placeholders. No request is sent.
+Great Value Whole Vitamin D Milk, Gallon; original Walmart URL `https://www.walmart.com/ip/10450114` (product ID `10450114`, publicly observed 2026-10-30). This identifies a genuine retailer listing, NOT verified Waukegan #3891 availability or pickup price. No request is sent.
 Exact payload:
-`{"source":"walmart_product","product_id":"1234567890","store_id":"3891","fulfillment_type":"pickup","parse":false,"render":""}`.
+`{"source":"walmart_product","product_id":"10450114","store_id":"3891","fulfillment_type":"pickup","parse":false,"render":""}`.
 
 **The exact 3891 PICKUP returned price is NOT yet verified.** The provider
 may fall back to default-store results. The response must contain raw HTML
 and independent selected page/product/price proof and actual returned job ID
 and URL, otherwise strict qualification FAILS.
+
+This focused patch requires saved receipts to carry a finished marker and
+`receipt_finalized=true` before interpreting a terminal positive status;
+an interrupted file save remains pending/failed. The expired watchdog makes
+zero blocking filesystem reads.
 
 No buyer authorization exists for credentials, paid execution or Azure. A
 future billable call must use explicit separate approval, a fixed persistent

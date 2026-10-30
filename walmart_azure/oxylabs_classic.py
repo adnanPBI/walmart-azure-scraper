@@ -6,17 +6,19 @@ Walmart source independently proves store 3891, pickup, seller and price.
 No paid requests run in dry-run mode (the default).
 """
 from __future__ import annotations
+from copy import deepcopy
 from datetime import datetime, timezone
 from hashlib import sha256
 from html import escape
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
 from typing import Callable
 from urllib.parse import urlparse
 import json
 import os
 import re
 import time
+import uuid
 
 import requests
 from bs4 import BeautifulSoup
@@ -311,12 +313,73 @@ def _invalidate_timed_out_proof(receipt: dict) -> None:
     receipt['genuine_products_verified']=0
     receipt['buyer_acceptance']=False
     for response in receipt.get('results', []):
+        response.pop('candidate_record_sha256',None)
         proof=response.get('source_evidence')
         if isinstance(proof,dict):
             proof['status']='DEADLINE_UNQUALIFIED'
+            proof.pop('candidate_record_sha256',None)
             for key in ('store_verified','pickup_verified','first_party_verified',
                         'price_verified','price_context_binding_verified'):
                 proof[key]=False
+
+
+
+def _incomplete_snapshot(receipt: dict) -> dict:
+    """Intermediate receipt remains unqualified even if a candidate was found."""
+    snapshot=deepcopy(receipt)
+    status=snapshot.get('status','')
+    if status not in ('DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN',
+                      'TRANSPORT_OR_LIMIT_STOP_RESERVED_OUTCOME_UNCERTAIN'):
+        snapshot['status']='FINALIZATION_PENDING_RESERVED_OUTCOME_UNCERTAIN'
+    snapshot['finalization_state']='PENDING'
+    snapshot['receipt_finalized']=False
+    snapshot.pop('finished_utc',None)
+    snapshot['source_shape_verified_records']=0
+    snapshot['genuine_products_verified']=0
+    snapshot['buyer_acceptance']=False
+    for reply in snapshot.get('results',[]):
+        reply.pop('candidate_record_sha256',None)
+        proof=reply.get('source_evidence')
+        if isinstance(proof,dict):
+            proof['status']='FINALIZATION_PENDING_UNQUALIFIED'
+            proof.pop('candidate_record_sha256',None)
+            for name in ('store_verified','pickup_verified','first_party_verified',
+                         'price_verified','price_context_binding_verified'):
+                proof[name]=False
+    return snapshot
+
+
+def _save_incomplete_receipt(budget: PaidBudget, receipt: dict) -> None:
+    budget.save_receipt(_incomplete_snapshot(receipt))
+
+
+def _publish_terminal_receipt(out: Path, receipt: dict, deadline_at: float,
+                              cancelled: Event) -> bool:
+    """Stage/fsync complete terminal bytes before a supervised atomic rename.
+
+    No potentially blocking I/O follows the promotion. A crash before it
+    leaves the existing non-positive receipt and consumed ledger reservation.
+    """
+    tmp=out.with_name(out.name+'.'+uuid.uuid4().hex+'.terminal.tmp')
+    promoted=False
+    try:
+        with tmp.open('x',encoding='utf-8') as stream:
+            json.dump(receipt,stream,indent=2,ensure_ascii=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if os.name=='posix':
+            fd=os.open(str(out.parent),os.O_RDONLY)
+            try: os.fsync(fd)
+            finally: os.close(fd)
+        if cancelled.is_set() or time.monotonic()>=deadline_at:
+            return False
+        os.replace(tmp,out)
+        promoted=True
+        return True
+    finally:
+        if not promoted:
+            try: tmp.unlink(missing_ok=True)
+            except OSError: pass
 
 
 def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
@@ -325,7 +388,9 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
               max_requests: int = 1, max_retries: int = 0, max_seconds: int = 90,
               max_body_bytes: int = 2_000_000,
               session_factory: Callable[[],object] = requests.Session,
-                    _absolute_deadline: float | None = None) -> dict:
+                    _absolute_deadline: float | None = None,
+                    _shared_progress: dict | None = None,
+                    _cancelled: Event | None = None) -> dict:
     if store.id != STORE_ID or store.zipcode != '60085' or '3900 Fountain Square' not in store.address:
         raise ValueError('Diagnostic is bound to client-confirmed Waukegan #3891, ZIP 60085')
     if not (1 <= max_requests <= 2 and 0 <= max_retries <= 1 and 1 <= max_seconds <= 180 and
@@ -337,10 +402,10 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
     start = time.monotonic()
     deadline_at = _absolute_deadline if _absolute_deadline is not None else start + max_seconds
     def check_deadline(stage):
-        if time.monotonic() >= deadline_at:
+        if (_cancelled is not None and _cancelled.is_set()) or time.monotonic() >= deadline_at:
             raise RequestDeadlineExceeded('Whole-run deadline expired during '+stage)
     out = Path(output)
-    receipt = {'release':'0.5.4', 'provider':'Oxylabs Web Scraper API (Classic)',
+    receipt = {'release':'0.5.5', 'provider':'Oxylabs Web Scraper API (Classic)',
                'endpoint': ENDPOINT, 'selected_store':store.id, 'selected_zip':store.zipcode,
                'pickup_required':'PICKUP', 'store_selection_in_api_payload':'REQUESTS_3891_PICKUP_REQUIRES_RETURNED_PROOF',
                'source_contract':'walmart_product id+store_id+fulfillment_type; parse=false; render empty',
@@ -370,6 +435,10 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
         raise OxylabsProbeError('Missing Classic API credentials; do not place them in source')
     try:
         budget = PaidBudget(out, authorization_id, max_requests)
+        if _shared_progress is not None:
+            _shared_progress['authorization_ledger']=str(budget.ledger_file)
+        receipt['receipt_finalized']=False
+        receipt['finalization_state']='PENDING'
         budget.open_receipt(receipt)  # exclusive; no concurrent receipt reuse
     except BudgetError as exc:
         raise OxylabsProbeError(str(exc)) from exc
@@ -386,6 +455,8 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
                 try:
                     check_deadline('durable pre-dispatch reservation')
                     budget.reserve(receipt, job, attempt)  # fsync ledger AND receipt before dispatch
+                    if _shared_progress is not None:
+                        _shared_progress['requests_sent']=receipt['requests_sent']
                 except BudgetError as exc:
                     receipt['results'].append({'job_index':job_index,'attempt':attempt,'error':str(exc)})
                     receipt['status']='BUDGET_RESERVATION_REFUSED_STOP'
@@ -471,7 +542,7 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
                             reply['qualification_reasons']=reasons
                         check_deadline('after verdict before persistence')
                     receipt['results'].append(reply)
-                    budget.save_receipt(receipt)
+                    _save_incomplete_receipt(budget,receipt)
                     if status>=500 and attempt<=max_retries and time.monotonic()<deadline_at:
                         # A retry is always a separately durably reserved possible charge.
                         receipt.pop('status',None)
@@ -482,13 +553,13 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
                     receipt['status']='DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN'
                     receipt['results'].append({'job_index':job_index,'attempt':attempt,
                                                'error':type(exc).__name__,'message':str(exc)})
-                    budget.save_receipt(receipt)
+                    _save_incomplete_receipt(budget,receipt)
                     break
                 except (requests.RequestException,ResponseBodyLimit,OxylabsProbeError,OSError,ValueError) as exc:
                     receipt['status']='TRANSPORT_OR_LIMIT_STOP_RESERVED_OUTCOME_UNCERTAIN'
                     receipt['results'].append({'job_index':job_index,'attempt':attempt,
                                                'error':type(exc).__name__,'message':str(exc)[:200]})
-                    budget.save_receipt(receipt)
+                    _save_incomplete_receipt(budget,receipt)
                     break
             if receipt.get('status'):
                 break
@@ -507,57 +578,78 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
             closer.start()
             closer.join(max(0.0,deadline_at-time.monotonic()))
             cleanup_completed=closed['finished']
-        if deadline_exceeded or not cleanup_completed or time.monotonic()>=deadline_at:
+        if (deadline_exceeded or not cleanup_completed or
+                (_cancelled is not None and _cancelled.is_set()) or
+                time.monotonic()>=deadline_at):
             _invalidate_timed_out_proof(receipt)
         receipt['duration_seconds']=round(time.monotonic()-start,3)
         receipt['finished_utc']=datetime.now(timezone.utc).isoformat(timespec='seconds')
-        budget.save_receipt(receipt)
-        # Supersede any positive result if final persistence crossed the cap.
-        if time.monotonic()>=deadline_at and receipt.get('status')!='DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN':
+        _save_incomplete_receipt(budget,receipt)
+        # The worker NEVER publishes positive terminal status; if a save has
+        # crossed the cap, the next persisted snapshot explicitly fails.
+        if ((_cancelled is not None and _cancelled.is_set()) or
+                time.monotonic()>=deadline_at):
             _invalidate_timed_out_proof(receipt)
-            budget.save_receipt(receipt)
+            _save_incomplete_receipt(budget,receipt)
     return receipt
 
 
 def run_probe(**kwargs) -> dict:
-    """Whole-run watchdog: bounds network, validation, persistence and cleanup.
+    """Bounded two-phase worker/finalizer; expired watchdog does no file I/O.
 
-    After timeout, return a conservative failure; never retry an uncertain
-    paid call. The worker still checks the SAME absolute deadline before
-    any dispatch and before claiming strict qualification.
+    All unfinished saved receipts are unqualified. The fixed approval ledger
+    holds the authoritative, permanently consumed billed-attempt reservation.
     """
-    if not kwargs.get('execute_billable', False):
+    if not kwargs.get('execute_billable',False):
         return _run_probe_core(**kwargs)
     deadline_at=time.monotonic()+kwargs.get('max_seconds',90)
+    cancelled=Event()
+    progress={'requests_sent':None,'authorization_ledger':''}
     state={}
-    def work():
-        try:
-            state['result']=_run_probe_core(_absolute_deadline=deadline_at,**kwargs)
-        except BaseException as exc:
-            state['error']=exc
-    thread=Thread(target=work,daemon=True)
-    thread.start()
-    thread.join(max(0.0,deadline_at-time.monotonic()))
-    if thread.is_alive():
-        # Inspect the durably fsynced pre-dispatch receipt. A missing count
-        # means UNKNOWN, not a statement that no paid attempt was dispatched.
-        last_receipt={}
-        try:
-            last_receipt=json.loads(Path(kwargs.get('output','')).read_text(encoding='utf-8'))
-        except (OSError,ValueError,TypeError):
-            pass
-        request_count=last_receipt.get('requests_sent')
-        if not isinstance(request_count,int):
-            request_count=None
-        return {'release':'0.5.4','status':'DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN',
+
+    def deadline_failure(note='Inspect the fixed approval ledger for reserved/uncertain attempts; no automatic retry.'):
+        return {'release':'0.5.5','status':'DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN',
                 'deadline_exceeded':True,'source_shape_verified_records':0,
                 'genuine_products_verified':0,'buyer_acceptance':False,
-                'requests_sent':request_count,
-                'authorization_ledger':last_receipt.get('authorization_ledger',''),
-                'receipt_path':kwargs.get('output',''),
-                'note':'Inspect the fixed approval ledger for reserved/uncertain attempts; no automatic retry.'}
-    if 'error' in state: raise state['error']
-    return state['result']
+                'receipt_finalized':False,'requests_sent':progress['requests_sent'],
+                'authorization_ledger':progress['authorization_ledger'],
+                'receipt_path':kwargs.get('output',''),'note':note}
+
+    def work():
+        try:
+            state['result']=_run_probe_core(_absolute_deadline=deadline_at,
+                _shared_progress=progress,_cancelled=cancelled,**kwargs)
+        except BaseException as exc:
+            state['error']=exc
+
+    thread=Thread(target=work,name='classic-reserved-probe',daemon=True)
+    thread.start()
+    thread.join(max(0.0,deadline_at-time.monotonic()))
+    if thread.is_alive() or time.monotonic()>=deadline_at:
+        cancelled.set()
+        return deadline_failure()
+    if 'error' in state:
+        raise state['error']
+
+    # Source checks, session cleanup, and all provisional fsyncs have completed.
+    # Positive terminal status is forbidden in the core worker.
+    final=state['result']
+    final['receipt_finalized']=True
+    final['finalization_state']='COMPLETE'
+    publish={}
+    def finalize():
+        try:
+            publish['ok']=_publish_terminal_receipt(
+                Path(kwargs['output']),final,deadline_at,cancelled)
+        except BaseException as exc:
+            publish['error']=exc
+    finisher=Thread(target=finalize,name='classic-terminal-receipt-publisher',daemon=True)
+    finisher.start()
+    finisher.join(max(0.0,deadline_at-time.monotonic()))
+    if finisher.is_alive() or not publish.get('ok',False):
+        cancelled.set()
+        return deadline_failure('Terminal receipt publication incomplete/uncertain; review the pending receipt and fixed ledger; no automatic retry.')
+    return final
 
 
 def review_saved_response(input_file: str, output_file: str, store: Store) -> dict:

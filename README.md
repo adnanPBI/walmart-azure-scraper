@@ -1,4 +1,4 @@
-# Walmart Azure Scraper v0.5.4 — authoritative GitHub source (2026-10-30)
+# Walmart Azure Scraper v0.5.5 — authoritative GitHub source (2026-10-30)
 
 **Status:** Implementation and OFFLINE regression qualification only. No authorized or
 executed paid Classic Oxylabs requests, no genuine 500-product run, no verified
@@ -18,7 +18,7 @@ the source of truth, not the older v0.5.0 ZIP.
 - Complete volume/digital terms and clipping precedence; family/bulk/multipack
   source labels; no silent promotion-terms truncation.
 - Classic Oxylabs single-product dry-run and offline source qualification.
-  **v0.5.4** changes the proposed request to the documented localized
+  **v0.5.4–v0.5.5** changes the proposed request to the documented localized
   `walmart_product` payload and uses the SAME strict source gate in the paid
   response path. Shipping/default-store prices cannot be labeled #3891 PICKUP.
 - A fixed durable approval ledger, 1-attempt pre-dispatch reservation, strict
@@ -50,23 +50,34 @@ offline test logs. These do NOT constitute observed retailer/paid/Azure tests.
 
 ## Classic single-product zero-cost diagnostic
 
+**v0.5.5 finalization guarantee:** worker saves are always non-positive
+`FINALIZATION_PENDING_RESERVED_OUTCOME_UNCERTAIN` or failed, with zero
+provisionally verified records and `receipt_finalized=false`. Only after
+cleanup plus provisional fsync finish, a separately watchdog-bounded terminal
+promotion may publish `receipt_finalized=true`, `finalization_state=COMPLETE`
+and `finished_utc`. On timeout the watchdog performs **no receipt reads**;
+the fixed grant ledger conservatively consumes the reserved attempt.
+A saved receipt missing terminal markers must never be counted as successful.
+
+
+
 ```powershell
 python -m walmart_azure oxylabs-probe --store 3891 `
-  --product-id 1234567890 `
-  --url https://www.walmart.com/ip/item/1234567890 `
+  --product-id 10450114 `
+  --url https://www.walmart.com/ip/10450114 `
   --max-requests 1 --max-retries 0 --max-seconds 90 `
   --max-body-bytes 2000000 `
   --output output\diagnostics\classic-product-dryrun.json
 ```
 
-**1234567890 and its URL are synthetic placeholders**. The CLI requires a
+**10450114 and its URL are synthetic placeholders**. The CLI requires a
 genuine source-observed /ip/ URL+matching numeric ID before a real request.
 This command is DRY RUN: no network or cost, no credentials.
 
 The proposed Classic API payload is exactly:
 
 ```json
-{"source":"walmart_product","product_id":"1234567890",
+{"source":"walmart_product","product_id":"10450114",
  "store_id":"3891","fulfillment_type":"pickup","parse":false,"render":""}
 ```
 
@@ -89,7 +100,7 @@ response parsing, evidence writing and close. A slow phase returns a
 conservative `DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN`; reserved attempts
 remain permanently spent. No automatic retry and no schedule.
 
-Read [complete v0.5.4 Classic request/response qualification and cost plan](docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md)
+Read [complete v0.5.5 Classic request/response qualification and cost plan](docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md)
 and [client handoff](CLIENT_HANDOFF_README.md).
 
 ## Outstanding acceptance gaps
@@ -104,7 +115,7 @@ NOT qualified. A single priced diagnostic has NOT changed the unavailable-
 and-later-missing-item retention requirement.
 
 **Milestone:** October 30, 2026 at 18:00 Asia/Dhaka: code/CI and conditional
-one-product compatibility review only, NOT full delivery. A live assessment
-requires the buyer's explicit approval, credentials managed privately and a
-genuine observed item ID. Remaining live/production work was estimated at
+one-product compatibility review only, NOT full delivery. A live assessment requires separate buyer approval, privately managed
+credentials and confirmation of provider/account compatibility. A genuine
+product ID is now nominated (10450114), but not store-3891 verified. Remaining live/production work was estimated at
 5–7 working days **after** connectivity and category coverage qualification.
