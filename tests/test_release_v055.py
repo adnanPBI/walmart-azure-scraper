@@ -29,7 +29,7 @@ def _assert_pending_or_failed(path):
 
 
 def test_complete_receipt_matches_successful_return_after_cleanup(tmp_path,monkeypatch):
-    result,session,_=invoke(tmp_path,monkeypatch,'v055-good',seconds=5)
+    result,session,_=invoke(tmp_path,monkeypatch,seconds=5)
     saved=json.loads((tmp_path/'result.json').read_text(encoding='utf-8'))
     assert len(session.calls)==1
     assert saved==result
@@ -53,7 +53,7 @@ def test_written_positive_candidate_cannot_escape_stalled_midrun_save(tmp_path,m
             release.wait(4)
     monkeypatch.setattr(PaidBudget,'save_receipt',slow_save)
     try:
-        result,session,elapsed=invoke(tmp_path,monkeypatch,'v055-midrun-save',seconds=1)
+        result,session,elapsed=invoke(tmp_path,monkeypatch,seconds=1)
         assert arrived.is_set()
         assert elapsed<1.25,elapsed
         assert len(session.calls)==1
@@ -103,7 +103,7 @@ def test_stalled_terminal_staging_is_cancelled_without_late_positive(tmp_path,mo
         return original(*args,**kwargs)
     monkeypatch.setattr(classic,'_publish_terminal_receipt',stalled_publisher)
     try:
-        result,session,elapsed=invoke(tmp_path,monkeypatch,'v055-final-staging',
+        result,session,elapsed=invoke(tmp_path,monkeypatch,
             seconds=1)
         assert arrived.is_set()
         assert elapsed<1.25,elapsed
