@@ -454,16 +454,20 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
                         else:
                             reasons = proof.get('reasons',[])
                             detail = ' '.join(str(value).lower() for value in reasons)
-                            if ('missing actual returned retailer source url' in detail or
-                                    'returned url must be a real' in detail or
-                                    'returned source url product id' in detail):
+                            if 'missing actual returned retailer source url' in detail:
                                 receipt['status']='UNVERIFIED_RESPONSE_STOP'
+                                reply['error']='MISSING_OR_UNSAFE_RETURNED_SOURCE_URL'
+                            elif ('returned url must be a real' in detail or
+                                  'returned source url product id' in detail):
+                                receipt['status']='UNVERIFIED_RESPONSE_STOP'
+                                reply['error']='RETURNED_PRODUCT_URL_ID_MISMATCH'
                             elif any(token in detail for token in (
                                     'blocked','captcha','challenge','robot','access restriction')):
                                 receipt['status']='RETAILER_ACCESS_STOP'
+                                reply['error']='RETAILER_CHALLENGE_IN_SOURCE_BODY'
                             else:
                                 receipt['status']='STORE_PICKUP_PRICE_UNVERIFIED_STOP'
-                            reply['error']='STRICT_SOURCE_QUALIFICATION_FAILED'
+                                reply['error']='STRICT_SOURCE_QUALIFICATION_FAILED'
                             reply['qualification_reasons']=reasons
                         check_deadline('after verdict before persistence')
                     receipt['results'].append(reply)
@@ -548,7 +552,9 @@ def run_probe(**kwargs) -> dict:
         return {'release':'0.5.4','status':'DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN',
                 'deadline_exceeded':True,'source_shape_verified_records':0,
                 'genuine_products_verified':0,'buyer_acceptance':False,
-                'requests_sent':request_count,'receipt_path':kwargs.get('output',''),
+                'requests_sent':request_count,
+                'authorization_ledger':last_receipt.get('authorization_ledger',''),
+                'receipt_path':kwargs.get('output',''),
                 'note':'Inspect the fixed approval ledger for reserved/uncertain attempts; no automatic retry.'}
     if 'error' in state: raise state['error']
     return state['result']

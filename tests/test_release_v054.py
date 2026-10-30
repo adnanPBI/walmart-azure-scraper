@@ -99,7 +99,7 @@ def test_live_probe_uses_exact_same_strict_saved_response_gate(tmp_path,monkeypa
 def test_live_probe_rejects_strict_saved_gate_failures(tmp_path,monkeypatch,variant):
     result,session,_=invoke(tmp_path,monkeypatch,variant)
     assert len(session.calls)==1
-    assert result['status']==STRICT_FAIL
+    assert result['status']==('UNVERIFIED_RESPONSE_STOP' if variant=='missing_url' else STRICT_FAIL)
     assert result['source_shape_verified_records']==0
     assert result['genuine_products_verified']==0
     assert result['buyer_acceptance'] is False
