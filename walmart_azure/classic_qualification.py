@@ -43,26 +43,33 @@ def capabilities() -> dict:
     return {
         'provider': 'Oxylabs Classic Web Scraper API',
         'endpoint': 'https://realtime.oxylabs.io/v1/queries',
-        'documented_raw_html_request': {'source': 'walmart', 'url': '<observed Walmart /ip/ URL>', 'parse': False},
-        'documented_product_json_alternative': {'source': 'walmart_product', 'query': '<source-observed product ID>', 'parse': True},
-        'required_for_price_proof': ['returned URL', 'raw retailer HTML', 'selected page store #3891',
-                                    'selected page PICKUP', 'product store #3891',
-                                    'store-scoped local PICKUP price', 'store-scoped PPM and offers if present',
-                                    'first-party seller', 'direct product identity'],
-        'classic_exact_store_selector_verified': False,
-        'geo_location_is_exact_store_selector': False,
-        'browser_instructions_walmart_support_verified': False,
-        'production_collector_classic_backend_qualified': False,
-        'provider_questions': [
-            'Which Classic Walmart URL request parameter or supported browser session action selects Walmart #3891 at 3900 Fountain Square Pl, 60085, PICKUP?',
-            'Is exact store selection retained across product/category/pagination requests and reflected in returned priceInfo, PPM and promotions?',
-            'Can raw HTML with the selected page/store/fulfillment context be returned without parse=true?',
-            'Is JS rendering required for the selected store evidence and what is the billed rate per outcome?',
-        ],
-        'no_paid_request_authorized': True,
-        'no_azure_deployment_authorized': True,
+        'documented_localized_product_request': {
+            'source':'walmart_product','product_id':'<Genuine observed product ID>',
+            'store_id':'3891','fulfillment_type':'pickup','parse':False,'render':''},
+        'documented_raw_html_request': {
+            'source':'walmart_product','product_id':'<Observed product ID>',
+            'store_id':'3891','fulfillment_type':'pickup','parse':False,'render':''},
+        'legacy_unlocalized_url_alternative': {
+            'source':'walmart','url':'<Observed Walmart /ip/ URL>','parse':False},
+        'store_selection_parameter_documented': True,
+        'returned_store_pickup_price_verified': False,
+        'required_for_price_proof': [
+            'actual provider job ID', 'actual returned source URL', 'original HTML',
+            'selected page store #3891 AND PICKUP', 'primary product ID and first-party seller',
+            'product pickup option bound to #3891',
+            'direct #3891 PICKUP price, PPM if present, and complete offer terms'],
+        'provider_can_fallback_to_default_store': True,
+        'rendering_request':'disabled by empty render string; must obtain separate cost approval if needed',
+        'client_account_entitlement_qualified': False,
+        'classic_collector_integrated': False,
+        'buyer_acceptance':False,
+        'no_paid_request_authorized':True,
+        'no_azure_deployment_authorized':True,
+        'provider_questions':[
+            'Does this Classic account return raw retailer HTML on walmart_product parse=false with store_id=3891 fulfillment_type=pickup render empty?',
+            'Does the returned HTML independently prove store #3891 PICKUP and bind its product price, direct PPM and offers to that store?',
+            'If raw HTML is unavailable or missing contextual price data, is rendering required and what is the incremental billing charge?']
     }
-
 
 def _modes(value) -> set[str]:
     if isinstance(value, (list, tuple)):

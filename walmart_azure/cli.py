@@ -194,9 +194,9 @@ def main() -> None:
     oxy = subs.add_parser('oxylabs-probe', help='Classic Web Scraper API: dry-run by default; paid only with two opt-ins')
     _add_configs(oxy)
     oxy.add_argument('--store', default='3891')
-    oxy.add_argument('--url', default=DEFAULT_URL, help='Original Walmart /ip/ product URL required for raw HTML response; must match item ID')
+    oxy.add_argument('--url', default=DEFAULT_URL, help='Original source-observed /ip/ URL for provenance; sent as product_id, not URL')
     oxy.add_argument('--product-id', default='', help='Source-observed product ID; also requires its original --url')
-    oxy.add_argument('--render-html', action='store_true', help='Optional JS rendering; increases cost')
+    oxy.add_argument('--render-html', action='store_true', help='Not permitted for this bounded product diagnostic; render is disabled')
     oxy.add_argument('--output', default='output/diagnostics/oxylabs-classic-review.json')
     oxy.add_argument('--max-requests', type=int, default=1)
     oxy.add_argument('--max-retries', type=int, default=0)
@@ -306,10 +306,10 @@ def main() -> None:
                 billing_approved=args.billing_approved,authorization_id=args.authorization_id,max_requests=args.max_requests,
                 max_retries=args.max_retries,max_seconds=args.max_seconds,
                 max_body_bytes=args.max_body_bytes)
-            print(json.dumps({'status':result['status'],'network_requests_sent':result['requests_sent'],
+            print(json.dumps({'status':result['status'],'network_requests_sent':result.get('requests_sent',0), 'uncertain_attempts_check_ledger':result.get('deadline_exceeded',False),
                 'buyer_acceptance':False, 'verified_products':result['genuine_products_verified'],
                 'receipt':args.output},indent=2))
-            code = 0 if not args.execute_billable else (0 if result['status']=='SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE' else 2)
+            code = 0 if not args.execute_billable else (0 if result['status']=='STRICT_SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE' else 2)
         elif args.command == 'oxylabs-enroll-approval':
             if not args.confirm_client_approval:
                 raise ValueError('No buyer authorization: --confirm-client-approval is required; no grant created')

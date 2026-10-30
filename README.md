@@ -1,69 +1,110 @@
-# Walmart Azure Scraper v0.5.3 — authoritative GitHub release
+# Walmart Azure Scraper v0.5.4 — authoritative GitHub source (2026-10-30)
 
-**Status (2026-10-29): source + OFFLINE tested. No paid Classic Oxylabs request, genuine 500-product crawl, observed live recovery, or Azure execution has been approved or performed.** The default commands do not make paid calls. Public source: `https://github.com/adnanPBI/walmart-azure-scraper`; identify the exact tested commit in GitHub Actions. No separate ZIP is authoritative.
+**Status:** Implementation and OFFLINE regression qualification only. No authorized or
+executed paid Classic Oxylabs requests, no genuine 500-product run, no verified
+Waukegan #3891 PICKUP price, no observed live recovery, no Azure deployment or
+twice-weekly schedule. The public GitHub commit and its matching Actions run are
+the source of truth, not the older v0.5.0 ZIP.
 
-## Installation — Windows PowerShell (Python 3.12)
+## What is implemented
+
+- Exact 22 string-valued JSON fields; blanks are empty strings; `gupc` and
+  `unit_price` remain blank; PPM is **directly scraped, never derived**.
+- Original 11-category Walmart CSV, exclusion preservation, navigation review,
+  positive pagination termination, strict candidate/detail reconciliation.
+- Retention across later crawls of all previously observed eligible unavailable
+  and later-missing products, with historical vs fresh provenance; fresh-only
+  canaries; atomic last-good publication.
+- Complete volume/digital terms and clipping precedence; family/bulk/multipack
+  source labels; no silent promotion-terms truncation.
+- Classic Oxylabs single-product dry-run and offline source qualification.
+  **v0.5.4** changes the proposed request to the documented localized
+  `walmart_product` payload and uses the SAME strict source gate in the paid
+  response path. Shipping/default-store prices cannot be labeled #3891 PICKUP.
+- A fixed durable approval ledger, 1-attempt pre-dispatch reservation, strict
+  time/response caps and a whole-run watchdog including cleanup. No paid call
+  is made without buyer approval plus private credentials and an enrolled grant.
+
+## Install and test (Windows PowerShell; Python 3.12)
 
 ```powershell
 git clone https://github.com/adnanPBI/walmart-azure-scraper.git
 cd walmart-azure-scraper
+# To reproduce a specific result, git checkout <FULL_COMMIT_SHA>
 py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -e ".[test]"
-python -m walmart_azure --version
-python -m walmart_azure inspect-categories
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[test]"
 Copy-Item config\stores.example.yaml config\stores.yaml
-python -m walmart_azure preflight
-python -m pytest -q
+.\.venv\Scripts\python.exe -m walmart_azure --version
+.\.venv\Scripts\python.exe -m walmart_azure inspect-categories
+.\.venv\Scripts\python.exe -m walmart_azure preflight
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
-For the **offline-only browser fixture**: `python -m playwright install chromium` followed by `python -m pytest tests/test_browser_e2e_offline.py -v`.
+For the separate local synthetic Chromium fixture:
+`python -m playwright install chromium` then
+`python -m pytest tests/test_browser_e2e_offline.py -v`.
+GitHub Actions tests Linux Python 3.11/3.12 and Windows Python 3.12,
+includes the isolated fixture on Ubuntu, builds source/wheels, and uploads
+offline test logs. These do NOT constitute observed retailer/paid/Azure tests.
 
-### Small Classic Web Scraper API diagnostic — zero paid requests
-
-The first useful request is a **single original Walmart product URL returning raw HTML**; both an observed numeric Walmart ID and its matching original URL are mandatory (replace `1234567890` with a real, approved example; it is not an observed item). No Food category or second product job is silently added.
+## Classic single-product zero-cost diagnostic
 
 ```powershell
-python -m walmart_azure oxylabs-probe --store 3891 --product-id 1234567890 `
+python -m walmart_azure oxylabs-probe --store 3891 `
+  --product-id 1234567890 `
   --url https://www.walmart.com/ip/item/1234567890 `
   --max-requests 1 --max-retries 0 --max-seconds 90 `
-  --output output\diagnostics\classic-zero-cost.json
+  --max-body-bytes 2000000 `
+  --output output\diagnostics\classic-product-dryrun.json
 ```
 
-Produces **only** the proposed POST and a local receipt, with **zero network requests, credentials or cost**:
+**1234567890 and its URL are synthetic placeholders**. The CLI requires a
+genuine source-observed /ip/ URL+matching numeric ID before a real request.
+This command is DRY RUN: no network or cost, no credentials.
+
+The proposed Classic API payload is exactly:
 
 ```json
-{"source":"walmart","url":"https://www.walmart.com/ip/item/1234567890","parse":false}
+{"source":"walmart_product","product_id":"1234567890",
+ "store_id":"3891","fulfillment_type":"pickup","parse":false,"render":""}
 ```
 
-The endpoint is `POST https://realtime.oxylabs.io/v1/queries` (Classic Basic Auth). The `--store 3891` argument is an **expected evidence scope, not a verified Classic API store/fulfillment selector**. Public examples do not establish an exact Waukegan #3891 PICKUP selection mechanism. The Walmart URL source returns raw HTML (unlike parsed-only walmart_product); a response lacking original, inspectable page-selected store + product + pickup + price linkage is marked **unverified**, even with HTTP 200. Only a returned product URL from the provider is accepted; it is never replaced with the requested URL. `geo_location`/ZIP by itself cannot certify the selected store.
+Target: `POST https://realtime.oxylabs.io/v1/queries` using Classic Basic
+Auth only when separately authorized. `store_id` and
+`fulfillment_type` are documented localization parameters but the retailer
+may return fallback/default-store results. Source-page proof is mandatory.
 
-**No paid command should be run without fresh buyer authorization.** A paid call now requires one fixed existing absolute WALMART_OXYLABS_LEDGER_ROOT, and separately enrolled approval using oxylabs-enroll-approval --authorization-id <ID> --max-requests 1 --confirm-client-approval. Neither root nor grant is created by a paid probe; moving output paths cannot reset the cap. Missing or damaged accounting fails closed.  If separately approved, an operator must supply private `OXY_WSA_USERNAME`, `OXY_WSA_PASSWORD`, a unique documented `--authorization-id`, `--execute-billable`, and `--billing-approved`, with one request and no retries by default. The fixed-root approval ledger reserves attempts on disk **before** dispatch (including possible charges or uncertain outcomes); a reused receipt path, concurrent lock, changed cap, or exhausted grant fails closed. An independent watchdog returns by the whole-run deadline on slow streams, marks uncertain attempts and does not silently retry them. Do not delete or reset budget receipts to claim fresh approval. See `docs/OXYLABS_CLASSIC_PLAN.md`.
+**Strict gate:** actual provider job_id, returned Walmart /ip/ URL and product
+ID, raw inspectable HTML, returned page-selected #3891 + PICKUP, product-store
+and explicit pickup option, first-party seller, price + directly displayed PPM
+and complete offers unambiguously bound to that selected store and fulfillment.
+The exact same `qualify_envelope` logic runs for saved replies and live
+transport. If any evidence is missing, do NOT set verification flags/counts.
+A compatible source-shape candidate still has `buyer_acceptance=false` and
+genuine records=0 until independent provider/client authentication.
 
-**No production collector integration yet:** `oxylabs-probe` diagnoses a single Classic response; `run`, `discover-tree`, checkpoints and actual product collection still use the Playwright route. The production Playwright runner also rejects available products whose price, PPM or offers are shipping-scoped even with a pickup option. The Classic provider's store/PICKUP selection semantics, result shape and source-body evidence must be qualified before building an approved store-bound collector. Never treat the dry-run or synthetic responses as current Walmart prices.
+**Deadline:** 90 seconds by default (configured maximum 180), including
+response parsing, evidence writing and close. A slow phase returns a
+conservative `DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN`; reserved attempts
+remain permanently spent. No automatic retry and no schedule.
 
-## Exactly scoped dataset and safety gates
+Read [complete v0.5.4 Classic request/response qualification and cost plan](docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md)
+and [client handoff](CLIENT_HANDOFF_README.md).
 
-- **Client context**: Waukegan Walmart #3891, 3900 Fountain Square Pl, Waukegan IL 60085; PICKUP. 
-- Client's original 11 parent categories and exclusions are in `config/categories.csv`. Production must traverse **all applicable subcategories**, not only parent URLs. This is pending live evidence and source qualification. The dry-run does not scrape these categories.
-- Live `run` uses Playwright and requires store/PICKUP proof, seller, direct retailer-displayed PPM, full separate offers, complete listing/detail reconciliation and positive pagination completion. No arbitrary 250-page cap; no failed category masquerades as empty.
-- Each valid record has exactly the client-required **22 keys** in order; missing values are empty strings, `gupc` and `unit_price` remain blank. `ppm` is directly displayed, never calculated. Multipack source labels are retained without multiplying sizes. Approximate-weight products are excluded.
-- Eligible historical products missing from a later run remain in `latest` with `CARRIED_FORWARD_MISSING` sidecars and historical prices clearly marked stale. They do **not** count toward fresh price-bearing records or live canary verification. A missing fresh canary stops publication even if carried forward.
-- Failed/incomplete runs never replace the last-good pointer. Runner-level source, recovery, and retention tests are synthetic; live interruption/recovery and Azure scheduling are **not executed**.
-- No Azure schedules, storage changes, provider credentials, or paid requests are activated by CI.
+## Outstanding acceptance gaps
 
-## Independent evidence
+The Classic `walmart_product` payload is **documented and implemented**,
+but this account's entitlement and the actual returned raw page/store
+context remain untested. The production collector STILL uses Playwright;
+the Classic adapter is a bounded independent diagnostic, NOT full collection
+integration. Complete category/subcategory coverage, 500 genuine products,
+observed live recovery, Azure deployment and twice-weekly scheduling are
+NOT qualified. A single priced diagnostic has NOT changed the unavailable-
+and-later-missing-item retention requirement.
 
-`python -m pytest -q` covers the client review regressions, including 600→599 retention, missing fresh canary, store100/page versus store3891/product mismatch, multi-store money ambiguity, missing returned URL, slow localhost streaming, durable budget reservation, clipped MULTIBUY, extended offers and trailing pack counts. GitHub Actions runs Ubuntu Python 3.11/3.12, Windows Python 3.12 and an isolated offline Chromium fixture. CI is **not live acceptance**.
-
-See `CLIENT_HANDOFF_README.md`, `docs/V052_ISSUE_TO_FIX_AND_TESTS.md`, `docs/OXYLABS_CLASSIC_PLAN.md`, and `docs/RELEASE_STATUS.json`. The `Instruction.txt` file agrees with this README; no older Instruction02 is part of this repository.
-
-## Next decision and target
-
-The earlier **2026-10-30 18:00 Asia/Dhaka (UTC+6), 07:00 US Central** target is realistic **only for one newly approved, source-observed-product diagnostic and go/no-go assessment**, if the buyer supplies an authorization decision, selected product ID, safe credential channel and provider configuration by Oct 29. It is not a 500-product or Azure completion promise. The larger live project remains an indicative **5–7 working days after approved store-specific source access and all-subcategory coverage are proven**. If Classic cannot return local store/PICKUP/price evidence, stop and request the buyer's supported store-bound workflow rather than inventing prices or using an unapproved route.
-
-
-## Strict Classic #3891 PICKUP source qualification (v0.5.3)
-
-The no-network `oxylabs-capabilities` command identifies the documented Classic raw-HTML route and records that an exact store/PICKUP selector remains **unverified**. `oxylabs-qualify` reviews a saved provider response, fails closed on ambiguous page/product/monetary scope, and writes sanitized source evidence plus an explicitly **NOT LIVE VERIFIED** 22-field record candidate when strict checks pass. It never calls Oxylabs or publishes last-good data. See `docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261029.md` and `tests/test_classic_qualification.py`. The full production runner is still Playwright-based; provider-backed category/detail integration remains separate and unqualified.
+**Milestone:** October 30, 2026 at 18:00 Asia/Dhaka: code/CI and conditional
+one-product compatibility review only, NOT full delivery. A live assessment
+requires the buyer's explicit approval, credentials managed privately and a
+genuine observed item ID. Remaining live/production work was estimated at
+5–7 working days **after** connectivity and category coverage qualification.

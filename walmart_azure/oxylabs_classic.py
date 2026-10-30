@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from html import escape
 from pathlib import Path
+from threading import Thread
 from typing import Callable
 from urllib.parse import urlparse
 import json
@@ -39,10 +40,10 @@ class OxylabsProbeError(RuntimeError):
 
 
 def payloads(url: str = DEFAULT_URL, product_id: str = '', render: bool = False) -> list[dict]:
-    """Use the documented Walmart URL RAW HTML source, not parsed-only JSON.
+    """Use the documented localized Walmart product source with raw HTML.
 
-    No Classic exact-store pickup selector is assumed. An observed original
-    /ip/ URL and matching numeric ID are required before any paid dispatch.
+    The original /ip/ URL is source provenance, not an API request field.
+    The returned page may fall back to the default store and MUST prove pickup.
     """
     if render:
         raise ValueError('Rendering is not qualified/approved for this Classic source')
@@ -57,7 +58,9 @@ def payloads(url: str = DEFAULT_URL, product_id: str = '', render: bool = False)
     match = re.search(r'/(\d{5,20})(?:/|$)', parsed.path)
     if not match or match.group(1) != product_id:
         raise ValueError('Observed source URL does not match requested product ID')
-    return [{'source': 'walmart', 'url': url, 'parse': False}]
+    return [{'source': 'walmart_product', 'product_id': product_id,
+             'store_id': STORE_ID, 'fulfillment_type': 'pickup',
+             'parse': False, 'render': ''}]
 
 
 def _sanitize(value):
@@ -300,12 +303,29 @@ def _evaluate_source(content, expected_store: Store, target_url: str) -> dict:
     return result
 
 
-def run_probe(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
+def _invalidate_timed_out_proof(receipt: dict) -> None:
+    """Deadline overruns always remove positive source-verification signals."""
+    receipt['status']='DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN'
+    receipt['deadline_exceeded']=True
+    receipt['source_shape_verified_records']=0
+    receipt['genuine_products_verified']=0
+    receipt['buyer_acceptance']=False
+    for response in receipt.get('results', []):
+        proof=response.get('source_evidence')
+        if isinstance(proof,dict):
+            proof['status']='DEADLINE_UNQUALIFIED'
+            for key in ('store_verified','pickup_verified','first_party_verified',
+                        'price_verified','price_context_binding_verified'):
+                proof[key]=False
+
+
+def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
               render: bool = False, output: str, execute_billable: bool = False,
               billing_approved: bool = False, authorization_id: str = '',
               max_requests: int = 1, max_retries: int = 0, max_seconds: int = 90,
               max_body_bytes: int = 2_000_000,
-              session_factory: Callable[[],object] = requests.Session) -> dict:
+              session_factory: Callable[[],object] = requests.Session,
+                    _absolute_deadline: float | None = None) -> dict:
     if store.id != STORE_ID or store.zipcode != '60085' or '3900 Fountain Square' not in store.address:
         raise ValueError('Diagnostic is bound to client-confirmed Waukegan #3891, ZIP 60085')
     if not (1 <= max_requests <= 2 and 0 <= max_retries <= 1 and 1 <= max_seconds <= 180 and
@@ -315,12 +335,15 @@ def run_probe(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
     if jobs and len(jobs) * (max_retries + 1) > max_requests:
         raise ValueError('Requests including retries exceed approved request cap')
     start = time.monotonic()
-    deadline_at = start + max_seconds
+    deadline_at = _absolute_deadline if _absolute_deadline is not None else start + max_seconds
+    def check_deadline(stage):
+        if time.monotonic() >= deadline_at:
+            raise RequestDeadlineExceeded('Whole-run deadline expired during '+stage)
     out = Path(output)
-    receipt = {'release':'0.5.2', 'provider':'Oxylabs Web Scraper API (Classic)',
+    receipt = {'release':'0.5.4', 'provider':'Oxylabs Web Scraper API (Classic)',
                'endpoint': ENDPOINT, 'selected_store':store.id, 'selected_zip':store.zipcode,
-               'pickup_required':'PICKUP', 'store_selection_in_api_payload':'NOT_ESTABLISHED',
-               'source_contract':'walmart raw HTML URL; parse=false; no automatic rendering',
+               'pickup_required':'PICKUP', 'store_selection_in_api_payload':'REQUESTS_3891_PICKUP_REQUIRES_RETURNED_PROOF',
+               'source_contract':'walmart_product id+store_id+fulfillment_type; parse=false; render empty',
                'request_cap_total_including_retries':max_requests,
                'retry_cap_per_job':max_retries, 'deadline_seconds':max_seconds,
                'body_cap_bytes':max_body_bytes, 'render_requested':render,
@@ -333,7 +356,7 @@ def run_probe(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
         receipt['status'] = ('DRY_RUN_NO_NETWORK_NO_COST' if jobs
                              else 'NEEDS_OBSERVED_PRODUCT_URL_NO_NETWORK_NO_COST')
         receipt['note'] = ('No credential access or paid request. Product ID and original URL must come from an observed Walmart source. '
-                           'Classic raw HTML Walmart URL source has no confirmed Waukegan/PICKUP selector; response must independently prove local price.')
+                           'Classic walmart_product requests store_id=3891 PICKUP; provider may fall back to default store. The returned page must independently prove local prices.')
         out.parent.mkdir(parents=True,exist_ok=True)
         _synced_json(out, receipt)  # never a billing reservation
         return receipt
@@ -354,20 +377,24 @@ def run_probe(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
     deadline_exceeded = False
     try:
         session = session_factory()
+        check_deadline('provider session creation')
         for job_index, job in enumerate(jobs, 1):
             for attempt in range(1, max_retries + 2):
                 if time.monotonic() >= deadline_at:
                     receipt['status'] = 'DEADLINE_STOP'
                     break
                 try:
+                    check_deadline('durable pre-dispatch reservation')
                     budget.reserve(receipt, job, attempt)  # fsync ledger AND receipt before dispatch
                 except BudgetError as exc:
                     receipt['results'].append({'job_index':job_index,'attempt':attempt,'error':str(exc)})
                     receipt['status']='BUDGET_RESERVATION_REFUSED_STOP'
                     break
                 try:
+                    check_deadline('provider network dispatch')
                     status, raw = bounded_post(session, ENDPOINT, (username,password), job,
                                                max_body_bytes, deadline_at)
+                    check_deadline('response processing')
                     reply={'job_index':job_index,'attempt':attempt,'http_status':status,
                            'request_payload':job,'response_bytes':len(raw),
                            'raw_response_sha256':sha256(raw).hexdigest(),
@@ -378,7 +405,9 @@ def run_probe(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
                         sanitized = _sanitize(full)
                     except (ValueError,UnicodeDecodeError):
                         sanitized={'raw_text':_sanitize(raw.decode('utf-8','replace'))}
+                    check_deadline('before sanitized evidence write')
                     _synced_json(body_file, sanitized, exclusive=True)
+                    check_deadline('after sanitized evidence write')
                     reply['sanitized_response_body']=str(body_file)
                     reply['sanitized_body_sha256']=sha256(body_file.read_bytes()).hexdigest()
                     if status in (401,403):
@@ -394,41 +423,39 @@ def run_probe(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
                         reply['error']='PROVIDER_NON_200'
                         receipt['status']='PROVIDER_NON_200_STOP'
                     else:
-                        results=sanitized.get('results') if isinstance(sanitized,dict) else None
-                        if not isinstance(results,list) or len(results)!=1 or not isinstance(results[0],dict):
-                            reply['error']='UNEXPECTED_CLASSIC_RESPONSE_SHAPE'
-                            receipt['status']='UNVERIFIED_RESPONSE_STOP'
+                        # Same strict gate for saved and live provider responses.
+                        # Never trust a requested store label or weak legacy verdict.
+                        from .classic_qualification import qualify_envelope
+                        from .config import Category
+                        check_deadline('before strict source qualification')
+                        review_category = Category(name='UNVERIFIED_DIAGNOSTIC_CATEGORY',
+                                                   subcategory='', url=url)
+                        proof, candidate, _ = qualify_envelope(
+                            full if isinstance(full,dict) else {},
+                            store=store, observed_url=url,
+                            product_id_expected=product_id, category=review_category)
+                        check_deadline('after strict source qualification')
+                        qualified = (candidate is not None and proof.get('status') ==
+                           'STRICT_OFFLINE_SOURCE_SHAPE_CANDIDATE_NOT_LIVE_AUTHENTICATED')
+                        proof['source_kind']='PROVIDER_TRANSPORT_OBSERVED_NOT_INDEPENDENTLY_AUTHENTICATED'
+                        proof['verified_genuine_live_products']=0
+                        proof['buyer_acceptance']=False
+                        for field in ('store_verified','pickup_verified',
+                                      'first_party_verified','price_verified',
+                                      'price_context_binding_verified'):
+                            proof[field]=bool(qualified)
+                        reply['source_evidence']=proof
+                        reply['job_id']=proof.get('provider_job_id','')
+                        reply['source_url']=proof.get('actual_returned_url','')
+                        if qualified:
+                            receipt['source_shape_verified_records']+=1
+                            receipt['status']='STRICT_SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE'
+                            reply['candidate_record_sha256']=proof.get('candidate_record_sha256','')
                         else:
-                            answer=results[0]
-                            # Critical: NEVER substitute requested URL for absent returned URL.
-                            source_url=answer.get('url')
-                            reply['source_url']=source_url or ''
-                            reply['job_id']=str(answer.get('job_id') or '')
-                            reply['source_status_code']=answer.get('status_code')
-                            parsed=urlparse(source_url) if isinstance(source_url,str) else urlparse('')
-                            if parsed.scheme!='https' or parsed.hostname not in ('walmart.com','www.walmart.com'):
-                                reply['error']='MISSING_OR_UNSAFE_RETURNED_SOURCE_URL'
-                                receipt['status']='UNVERIFIED_RESPONSE_STOP'
-                            elif parsed.path.casefold().startswith(('/blocked','/challenge','/captcha')) or answer.get('status_code')!=200:
-                                reply['error']='RETAILER_ACCESS_RESTRICTION_OR_NON_200'
-                                receipt['status']='RETAILER_ACCESS_STOP'
-                            elif not re.search(r'/ip/(?:[^/?]+/)?'+re.escape(product_id)+r'(?:[/?#]|$)',parsed.path):
-                                reply['error']='RETURNED_PRODUCT_URL_ID_MISMATCH'
-                                receipt['status']='UNVERIFIED_RESPONSE_STOP'
-                            else:
-                                proof=_evaluate_source(answer.get('content'), store, source_url)
-                                reply['source_evidence']=proof
-                                if str(proof.get('source_parse_error','')).startswith('BlockedResponse'):
-                                    reply['error']='RETAILER_CHALLENGE_IN_SOURCE_BODY'
-                                    receipt['status']='RETAILER_ACCESS_STOP'
-                                elif str(proof.get('product_id','')) != product_id:
-                                    reply['error']='PRODUCT_ID_SOURCE_MISMATCH'
-                                    receipt['status']='UNVERIFIED_RESPONSE_STOP'
-                                elif proof['verification_status']!='SOURCE_SHAPE_VERIFIED_NEEDS_HUMAN_COMPARISON':
-                                    receipt['status']='STORE_PICKUP_PRICE_UNVERIFIED_STOP'
-                                else:
-                                    receipt['source_shape_verified_records']+=1
-                                    receipt['status']='SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE'
+                            receipt['status']='STORE_PICKUP_PRICE_UNVERIFIED_STOP'
+                            reply['error']='STRICT_SOURCE_QUALIFICATION_FAILED'
+                            reply['qualification_reasons']=proof.get('reasons',[])
+                        check_deadline('after verdict before persistence')
                     receipt['results'].append(reply)
                     budget.save_receipt(receipt)
                     if status>=500 and attempt<=max_retries and time.monotonic()<deadline_at:
@@ -453,15 +480,58 @@ def run_probe(*, store: Store, url: str = DEFAULT_URL, product_id: str = '',
                 break
         receipt.setdefault('status','STORE_PICKUP_PRICE_UNVERIFIED_STOP')
     finally:
-        # A timed-out background transport may still be blocked in a socket read;
-        # do not block this bounded call waiting for it. It owns NO new paid jobs.
+        # Session cleanup belongs to the same deadline; never block the caller
+        # waiting on a slow provider adapter's .close().
+        cleanup_completed=True
         if session is not None and not deadline_exceeded and hasattr(session,'close'):
-            try: session.close()
-            except Exception: pass
+            closed={'finished':False}
+            def close_session():
+                try: session.close()
+                except Exception: pass
+                finally: closed['finished']=True
+            closer=Thread(target=close_session,daemon=True)
+            closer.start()
+            closer.join(max(0.0,deadline_at-time.monotonic()))
+            cleanup_completed=closed['finished']
+        if deadline_exceeded or not cleanup_completed or time.monotonic()>=deadline_at:
+            _invalidate_timed_out_proof(receipt)
         receipt['duration_seconds']=round(time.monotonic()-start,3)
         receipt['finished_utc']=datetime.now(timezone.utc).isoformat(timespec='seconds')
         budget.save_receipt(receipt)
+        # Supersede any positive result if final persistence crossed the cap.
+        if time.monotonic()>=deadline_at and receipt.get('status')!='DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN':
+            _invalidate_timed_out_proof(receipt)
+            budget.save_receipt(receipt)
     return receipt
+
+
+def run_probe(**kwargs) -> dict:
+    """Whole-run watchdog: bounds network, validation, persistence and cleanup.
+
+    After timeout, return a conservative failure; never retry an uncertain
+    paid call. The worker still checks the SAME absolute deadline before
+    any dispatch and before claiming strict qualification.
+    """
+    if not kwargs.get('execute_billable', False):
+        return _run_probe_core(**kwargs)
+    deadline_at=time.monotonic()+kwargs.get('max_seconds',90)
+    state={}
+    def work():
+        try:
+            state['result']=_run_probe_core(_absolute_deadline=deadline_at,**kwargs)
+        except BaseException as exc:
+            state['error']=exc
+    thread=Thread(target=work,daemon=True)
+    thread.start()
+    thread.join(max(0.0,deadline_at-time.monotonic()))
+    if thread.is_alive():
+        return {'release':'0.5.4','status':'DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN',
+                'deadline_exceeded':True,'source_shape_verified_records':0,
+                'genuine_products_verified':0,'buyer_acceptance':False,
+                'receipt_path':kwargs.get('output',''),
+                'note':'Inspect the durable approval ledger for reserved/uncertain attempts; no automatic retry.'}
+    if 'error' in state: raise state['error']
+    return state['result']
 
 
 def review_saved_response(input_file: str, output_file: str, store: Store) -> dict:
@@ -481,17 +551,34 @@ def review_saved_response(input_file: str, output_file: str, store: Store) -> di
     if not isinstance(results,list) or not 1<=len(results)<=2:
         raise OxylabsProbeError('Expected 1 or 2 Classic API results')
     assessments=[]
+    # Even the legacy saved-response review MUST use the same strict gate
+    # as the live probe and oxylabs-qualify CLI. A URL drawn from the provider
+    # envelope is not independently authenticated, so review never claims LIVE.
+    from .classic_qualification import qualify_envelope, ID_REGEX
+    from .config import Category
     for entry in results:
         if not isinstance(entry,dict) or entry.get('status_code')!=200:
             raise OxylabsProbeError('Source result missing or not HTTP 200')
-        url=str(entry.get('url') or '')
-        parsed=urlparse(url)
+        source_url=str(entry.get('url') or '')
+        parsed=urlparse(source_url)
         if parsed.scheme!='https' or parsed.hostname not in ('www.walmart.com','walmart.com'):
             raise OxylabsProbeError('Source URL missing or not an actual Walmart URL')
         if parsed.path.casefold().startswith(('/blocked','/challenge','/captcha')):
             raise OxylabsProbeError('Source returned an access-restriction page')
-        assessments.append({'source_url':url,'job_id':str(entry.get('job_id') or ''),
-                            'source_fields':_evaluate_source(entry.get('content'),store,url)})
+        id_match=ID_REGEX.search(parsed.path)
+        if not id_match:
+            raise OxylabsProbeError('Source product URL lacks a numeric Walmart ID')
+        proof,candidate,_=qualify_envelope({'results':[entry]},store=store,
+            observed_url=source_url,product_id_expected=id_match.group(1),
+            category=Category(name='UNVERIFIED_OFFLINE_LABEL',subcategory='',url=source_url))
+        proof['source_url_origin']='UNAUTHENTICATED_PROVIDER_ENVELOPE_ONLY'
+        proof['buyer_acceptance']=False
+        strict_ok=candidate is not None and proof.get('status')=='STRICT_OFFLINE_SOURCE_SHAPE_CANDIDATE_NOT_LIVE_AUTHENTICATED'
+        for flag in ('store_verified','pickup_verified','price_verified',
+                     'first_party_verified','price_context_binding_verified'):
+            proof[flag]=bool(strict_ok)
+        assessments.append({'source_url':source_url,
+            'job_id':str(entry.get('job_id') or ''),'source_fields':proof})
     result={'status':'OFFLINE_SOURCE_SHAPE_REVIEW_ONLY','source_input_sha256':sha256(raw).hexdigest(),
             'store_expected':store.id,'pickup_required':'PICKUP',
             'results':assessments,'network_requests':0,'paid_execution':False,

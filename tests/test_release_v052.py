@@ -71,7 +71,7 @@ def test_product_level_shipping_selection_rejects_local_pickup_prices():
 def test_provider_payload_requires_raw_html_and_exact_original_product_url():
     assert classic.payloads(product_id=PID)==[]
     assert classic.payloads(url=PRODUCT_URL,product_id=PID)==[
-        {'source':'walmart','url':PRODUCT_URL,'parse':False}]
+        {'source':'walmart_product','product_id':PID,'store_id':'3891','fulfillment_type':'pickup','parse':False,'render':''}]
     with pytest.raises(ValueError,match='match'):
         classic.payloads(url=PRODUCT_URL,product_id='9876543210')
     with pytest.raises(ValueError,match='product detail'):

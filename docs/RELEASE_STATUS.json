@@ -1,6 +1,6 @@
 {
-  "version": "0.5.3",
-  "date": "2026-10-29",
+  "version": "0.5.4",
+  "date": "2026-10-30",
   "source": "GitHub commit is authoritative; verify exact CI run",
   "offline_tests": "local tests passed; see current CI for exact count",
   "classic_paid_requests": 0,
@@ -9,11 +9,14 @@
   "complete_subcategories_verified": false,
   "live_recovery_verified": false,
   "client_authorization": "NOT_GRANTED",
-  "next_milestone": "2026-10-30 18:00 Asia/Dhaka conditional one-product go/no-go, not guaranteed live result",
-  "classic_payload": "Walmart raw HTML URL, parse=false; source-observed ID+URL",
+  "next_milestone": "2026-10-30 18:00 Asia/Dhaka CODE/CI + conditional live one-product diagnostic only; no paid call approved",
+  "classic_payload": "walmart_product(product_id,store_id=3891,fulfillment_type=pickup,parse=false,render='')",
   "paid_approval_root": "WALMART_OXYLABS_LEDGER_ROOT required; never receipt-folder-derived",
   "pending_local_pickup_selection": true,
-  "classic_strict_response_gate": "OFFLINE_IMPLEMENTED",
-  "classic_exact_store_selection": "UNVERIFIED",
-  "classic_collector_integration": "NOT_QUALIFIED"
+  "classic_strict_response_gate": "LIVE_AND_OFFLINE_UNIFIED",
+  "classic_exact_store_selection": "UNVERIFIED_RETAILER_RESPONSE",
+  "classic_collector_integration": "NOT_QUALIFIED",
+  "classic_store_selection": "DOCUMENTED_PARAMETER_NOT_LIVE_VERIFIED",
+  "strict_source_shape_genuine_count": 0,
+  "whole_run_deadline": "bounded watchdog + bounded cleanup; late results fail closed"
 }

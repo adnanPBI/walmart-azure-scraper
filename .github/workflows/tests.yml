@@ -1,4 +1,4 @@
-name: v0.5.3 offline quality gates
+name: v0.5.4 offline quality gates
 
 on:
   push:
@@ -91,8 +91,8 @@ jobs:
           data=json.loads(path.read_text())
           assert data['status']=='DRY_RUN_NO_NETWORK_NO_COST'
           assert data['requests_sent']==0
-          assert data['jobs_planned']==[{'source':'walmart','url':'https://www.walmart.com/ip/item/1234567890','parse':False}]
-          print('Raw-HTML Classic payload and zero requests confirmed; synthetic URL only')
+          assert data['jobs_planned']==[{'source':'walmart_product','product_id':'1234567890','store_id':'3891','fulfillment_type':'pickup','parse':False,'render':''}]
+          print('Localized walmart_product raw-HTML payload (not a verified store) and zero requests confirmed')
           PY
       - name: Offline Classic strict pickup source qualification (SYNTHETIC only)
         shell: bash

@@ -97,7 +97,7 @@ def test_missing_returned_url_is_not_synthesized(tmp_path, monkeypatch):
 
 def test_primary_product_only_and_default_without_id_no_network(tmp_path):
     assert classic.payloads(product_id=PID)==[]
-    assert classic.payloads(url=PRODUCT_URL,product_id=PID)==[{'source':'walmart','url':PRODUCT_URL,'parse':False}]
+    assert classic.payloads(url=PRODUCT_URL,product_id=PID)==[{'source':'walmart_product','product_id':PID,'store_id':'3891','fulfillment_type':'pickup','parse':False,'render':''}]
     assert classic.payloads()==[]
     r=classic.run_probe(store=WAUKEGAN,output=str(tmp_path/'dry.json'))
     assert r['status']=='NEEDS_OBSERVED_PRODUCT_URL_NO_NETWORK_NO_COST' and r['requests_sent']==0

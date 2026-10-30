@@ -1,12 +1,11 @@
-WALMART AZURE SCRAPER v0.5.3 - AUTHORITATIVE GITHUB RELEASE, 2026-10-29
-Read README.md, CLIENT_HANDOFF_README.md, docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261029.md at exact tested commit.
-Windows PowerShell from repository root:
-  py -3.12 -m venv .venv
+WALMART AZURE SCRAPER v0.5.4 — AUTHORITATIVE GITHUB SOURCE, 2026-10-30
+Do NOT use an older ZIP or v0.5.3 request shape; use exact GitHub SHA + Actions.
+See README.md, CLIENT_HANDOFF_README.md and docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md.
+Windows PowerShell: py -3.12 -m venv .venv
   .\.venv\Scripts\python.exe -m pip install -e ".[test]"
   Copy-Item config\stores.example.yaml config\stores.yaml
   .\.venv\Scripts\python.exe -m walmart_azure preflight
   .\.venv\Scripts\python.exe -m pytest -q
-  .\.venv\Scripts\python.exe -m walmart_azure oxylabs-capabilities
-  .\.venv\Scripts\python.exe -m pytest tests/test_classic_qualification.py -q
-No credentials, paid requests, real Walmart #3891 PICKUP local prices, live recovery, Azure deployment or production schedules are approved/verified.
-The saved-response source gate runs OFFLINE and never publishes an acceptance dataset.
+Zero-request dry-run: python -m walmart_azure oxylabs-probe --store 3891 --product-id 1234567890 --url https://www.walmart.com/ip/item/1234567890 --max-requests 1 --max-retries 0 --max-seconds 90 --max-body-bytes 2000000 --output output/diagnostics/classic-dryrun.json
+The product ID is synthetic placeholder. Proposed Classic payload uses source=walmart_product, product_id, store_id=3891, fulfillment_type=pickup, parse=false, render="".
+No paid Oxylabs calls, live retailer products, Azure jobs or schedules are approved.

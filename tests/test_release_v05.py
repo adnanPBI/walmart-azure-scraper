@@ -158,14 +158,14 @@ def test_classic_payload_review_and_credentials_never_needed_offline(tmp_path,mo
     path=tmp_path/'receipt.json'
     r=run_probe(store=WAUKEGAN,product_id='1234567890',url=SOURCE_URL,output=str(path))
     assert r['status']=='DRY_RUN_NO_NETWORK_NO_COST' and r['requests_sent']==0
-    assert r['jobs_planned']==[{'source':'walmart','url':SOURCE_URL,'parse':False}]
+    assert r['jobs_planned']==[{'source':'walmart_product','product_id':'1234567890','store_id':'3891','fulfillment_type':'pickup','parse':False,'render':''}]
     assert json.loads(path.read_text())==r
     with pytest.raises(OxylabsProbeError,match='Paid execution'):
         run_probe(store=WAUKEGAN,output=str(tmp_path/'not-allowed.json'),execute_billable=True)
     with pytest.raises(ValueError,match='review caps'):
         run_probe(store=WAUKEGAN,output=str(tmp_path/'bad.json'),product_id='1234567890',max_requests=0)
     assert payloads(product_id='1234567890')==[]
-    assert payloads(url=SOURCE_URL,product_id='1234567890')[0]=={'source':'walmart','url':SOURCE_URL,'parse':False}
+    assert payloads(url=SOURCE_URL,product_id='1234567890')[0]=={'source':'walmart_product','product_id':'1234567890','store_id':'3891','fulfillment_type':'pickup','parse':False,'render':''}
 
 
 class MockResponse:
@@ -190,17 +190,10 @@ def test_classic_transport_is_bounded_sanitized_and_evidence_separated(tmp_path,
     PaidBudget.register_authorization('TEST-APPROVAL-123',1)
     monkeypatch.setenv('OXY_WSA_USERNAME','synthetic-account')
     monkeypatch.setenv('OXY_WSA_PASSWORD','TOPSECRET')
-    product={'usItemId':'1234567890','name':'SYNTHETIC item 12 oz',
-             'canonicalUrl':'/ip/item/1234567890', 'sellerName':'Walmart.com',
-             'location':{'storeIds':['3891']},
-             'fulfillmentOptions':[{'type':'PICKUP','status':'IN_STOCK'}],
-             'priceInfo':{'currentPrice':{'price':'2.50'},'unitPrice':'$0.25/oz'},
-             'promotions':[{'text':'2 for $5','terms':'Limit 1; Valid through 10/31'}]}
-    hydration={'props':{'pageProps':{'initialData':{'location':{'storeId':'3891'},'product':product}}}}
-    html='<html><script id="__NEXT_DATA__">'+json.dumps(hydration)+'</script></html>'
-    response={'results':[{'status_code':200,'url':'https://www.walmart.com/ip/item/1234567890',
-                           'job_id':'synthetic_job','content':html}],
-              'session_token':'do-not-store-this'}
+    # The positive probe fixture must satisfy the STRICT selected page,
+    # product availability, store/PICKUP AND monetary-scope checks.
+    response=json.loads((Path(__file__).parent.parent/'examples'/
+        'oxylabs_classic_SYNTHETIC_WAUKEGAN_3891_STRICT_REVIEW.json').read_text())
     session=MockSession(MockResponse(response))
     path=tmp_path/'probe.json'
     r=run_probe(store=WAUKEGAN,output=str(path),execute_billable=True,billing_approved=True,product_id='1234567890',url=SOURCE_URL,authorization_id='TEST-APPROVAL-123',
@@ -209,11 +202,11 @@ def test_classic_transport_is_bounded_sanitized_and_evidence_separated(tmp_path,
     assert r['source_shape_verified_records']==1
     assert r['genuine_products_verified']==0
     assert r['buyer_acceptance'] is False
-    assert r['status']=='SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE'
-    assert len(session.calls)==1 and session.calls[0][1]['json']['source']=='walmart'
+    assert r['status']=='STRICT_SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE'
+    assert len(session.calls)==1 and session.calls[0][1]['json']['source']=='walmart_product'
     sanitized=Path(r['results'][0]['sanitized_response_body']).read_text()
     assert 'TOPSECRET' not in sanitized and 'do-not-store-this' not in sanitized
-    assert '$0.25/oz' in sanitized and 'Limit 1' in sanitized and '2.50' in sanitized
+    assert '$0.25/fl oz' in sanitized and 'Limit 1' in sanitized and '4.00' in sanitized
     assert r['results'][0]['source_evidence']['pickup_verified']
     assert r['results'][0]['raw_response_sha256']==hashlib.sha256(json.dumps(response).encode()).hexdigest()
 

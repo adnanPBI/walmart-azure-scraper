@@ -1,50 +1,50 @@
-# Walmart Scraper v0.5.3 — Client commands (2026-10-29)
+# Walmart Azure Scraper v0.5.4 — client reproduction (2026-10-30)
 
-The authoritative release is the GitHub commit reported with the matching successful GitHub Actions run; **not** the previously shared v0.5.0 ZIP or its older Instruction02 text. Clone or check out the full commit SHA supplied in the private Freelancer message.
+The **exact GitHub commit SHA plus matching successful Actions run** supersede
+older ZIPs and outdated documents. All evidence is offline until separately
+authorized and independently authenticated.
 
 ## Windows PowerShell
 
 ```powershell
 git clone https://github.com/adnanPBI/walmart-azure-scraper.git
 cd walmart-azure-scraper
-# Optional: git checkout <full-authoritative-commit-sha>
+# git checkout <FULL_VERIFIED_COMMIT_HASH>
 py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[test]"
-python -m walmart_azure --version
+.\.venv\Scripts\python.exe -m pip install -e ".[test]"
 Copy-Item config\stores.example.yaml config\stores.yaml
-python -m walmart_azure preflight
-python -m pytest -q
+.\.venv\Scripts\python.exe -m walmart_azure preflight
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Optional isolated browser fixture: `python -m playwright install chromium` then `python -m pytest tests/test_browser_e2e_offline.py -v`.
+Optional browser fixture: `python -m playwright install chromium`,
+then `python -m pytest tests/test_browser_e2e_offline.py -v`.
 
-## Classic Oxylabs primary-product DRY RUN; zero paid network requests
+## Zero-cost, one-product Classic request preview
 
 ```powershell
-python -m walmart_azure oxylabs-probe --store 3891 --product-id 1234567890 `
+.\.venv\Scripts\python.exe -m walmart_azure oxylabs-probe `
+  --store 3891 --product-id 1234567890 `
   --url https://www.walmart.com/ip/item/1234567890 `
   --max-requests 1 --max-retries 0 --max-seconds 90 `
-  --output output\diagnostics\classic-review.json
+  --max-body-bytes 2000000 `
+  --output output\diagnostics\classic-product-dryrun.json
 ```
 
-The shown item ID and matching URL are **synthetic command placeholders**, not a retailer record. Replace with a real source-observed product ID only after client selection. The dry run writes proposed `{"source":"walmart","url":"https://www.walmart.com/ip/item/1234567890","parse":false}` and a no-cost receipt. The Classic Walmart URL raw-HTML source is documented; parsed-only walmart_product cannot prove source-page pickup context; a tested way to select **Waukegan #3891 PICKUP** through this request is **not** established. We do not claim genuine price, PPM or offer evidence without a returned original page showing a single consistent store/product/PICKUP/price context.
+The fake ID+URL above are only CLI placeholders. No request is sent.
+Exact payload:
+`{"source":"walmart_product","product_id":"1234567890","store_id":"3891","fulfillment_type":"pickup","parse":false,"render":""}`.
 
-## Never execute billable mode without approval
+**The exact 3891 PICKUP returned price is NOT yet verified.** The provider
+may fall back to default-store results. The response must contain raw HTML
+and independent selected page/product/price proof and actual returned job ID
+and URL, otherwise strict qualification FAILS.
 
-The **separate** paid execution flags (not approved at present) require a pre-existing fixed WALMART_OXYLABS_LEDGER_ROOT and separately enrolled buyer-approved grant (oxylabs-enroll-approval), plus private Oxylabs credentials, a buyer authorization reference passed as `--authorization-id`, unique receipt path, explicit `--execute-billable --billing-approved`, and approved cap. Durable ledger, independent stream deadline, source URL proof, seller and store/price binding all fail closed. For bounded design and unreconciled provider features read `docs/OXYLABS_CLASSIC_PLAN.md`.
-
-## Status
-
-Offline tests and CI are distinct from paid Oxylabs execution, 500 live distinct products, live interruption recovery, full category/subcategory coverage and Azure verification. None of those live acceptance gates is completed. The first conditional live review milestone is October 30, 2026 at 18:00 Asia/Dhaka (07:00 Central) *only if the buyer authorizes and provides a source-observed product and access method in time*. Larger acceptance work remains conditional.
-
-
-## v0.5.3 qualification, ZERO provider requests
-
-```powershell
-python -m walmart_azure oxylabs-capabilities
-python -m pytest tests/test_classic_qualification.py -q
-python -m walmart_azure oxylabs-qualify --response examples/oxylabs_classic_SYNTHETIC_WAUKEGAN_3891_STRICT_REVIEW.json --url https://www.walmart.com/ip/SYNTHETIC-DO-NOT-SUBMIT/1234567890 --product-id 1234567890 --store 3891 --category Food --sub-category 'Soft Drinks' --expected-job-id SYNTHETIC_JOB_NOT_AUTHENTIC --output-dir output/diagnostics/classic-synthetic-review
-```
-
-Synthetic fixture and preview never count toward buyer acceptance. Full source requirements: `docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261029.md`. Exact #3891 PICKUP store-selection method, billable requests, genuine price evidence, full-coverage collector integration and Azure remain unverified/unapproved.
+No buyer authorization exists for credentials, paid execution or Azure. A
+future billable call must use explicit separate approval, a fixed persistent
+pre-enrolled ledger, unique receipt and credentials outside GitHub. Read
+[the complete request, evidence, deadline and cost plan](docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md).
+The code still needs Classic production collector integration, 500 genuine
+distinct products, all category/subcategory coverage, observed live recovery
+and Azure production tests. Historical unavailable items must remain retained
+even if a diagnostic requires one currently price-bearing item.
