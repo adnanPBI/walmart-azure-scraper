@@ -452,9 +452,19 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
                             receipt['status']='STRICT_SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE'
                             reply['candidate_record_sha256']=proof.get('candidate_record_sha256','')
                         else:
-                            receipt['status']='STORE_PICKUP_PRICE_UNVERIFIED_STOP'
+                            reasons = proof.get('reasons',[])
+                            detail = ' '.join(str(value).lower() for value in reasons)
+                            if ('missing actual returned retailer source url' in detail or
+                                    'returned url must be a real' in detail or
+                                    'returned source url product id' in detail):
+                                receipt['status']='UNVERIFIED_RESPONSE_STOP'
+                            elif any(token in detail for token in (
+                                    'blocked','captcha','challenge','robot','access restriction')):
+                                receipt['status']='RETAILER_ACCESS_STOP'
+                            else:
+                                receipt['status']='STORE_PICKUP_PRICE_UNVERIFIED_STOP'
                             reply['error']='STRICT_SOURCE_QUALIFICATION_FAILED'
-                            reply['qualification_reasons']=proof.get('reasons',[])
+                            reply['qualification_reasons']=reasons
                         check_deadline('after verdict before persistence')
                     receipt['results'].append(reply)
                     budget.save_receipt(receipt)
@@ -525,11 +535,21 @@ def run_probe(**kwargs) -> dict:
     thread.start()
     thread.join(max(0.0,deadline_at-time.monotonic()))
     if thread.is_alive():
+        # Inspect the durably fsynced pre-dispatch receipt. A missing count
+        # means UNKNOWN, not a statement that no paid attempt was dispatched.
+        last_receipt={}
+        try:
+            last_receipt=json.loads(Path(kwargs.get('output','')).read_text(encoding='utf-8'))
+        except (OSError,ValueError,TypeError):
+            pass
+        request_count=last_receipt.get('requests_sent')
+        if not isinstance(request_count,int):
+            request_count=None
         return {'release':'0.5.4','status':'DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN',
                 'deadline_exceeded':True,'source_shape_verified_records':0,
                 'genuine_products_verified':0,'buyer_acceptance':False,
-                'receipt_path':kwargs.get('output',''),
-                'note':'Inspect the durable approval ledger for reserved/uncertain attempts; no automatic retry.'}
+                'requests_sent':request_count,'receipt_path':kwargs.get('output',''),
+                'note':'Inspect the fixed approval ledger for reserved/uncertain attempts; no automatic retry.'}
     if 'error' in state: raise state['error']
     return state['result']
 

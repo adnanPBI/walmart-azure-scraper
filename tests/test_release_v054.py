@@ -58,7 +58,7 @@ def invoke(tmp_path, monkeypatch, variant=None, *, session=None, seconds=10):
     approval='LOCAL-REVIEW-'+(variant or 'positive')
     PaidBudget.register_authorization(approval,1)
     if session is None:
-        session=MockSession(MockResponse(envelope(variant)))
+        session=MockSession(MockResponse(envelope(None if variant in ('slow-close','slow-process') else variant)))
     started=time.monotonic()
     result=classic.run_probe(store=WAUKEGAN, product_id=PID,
         url=PRODUCT_URL, output=str(tmp_path/'result.json'),

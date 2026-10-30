@@ -52,6 +52,8 @@ def capabilities() -> dict:
         'legacy_unlocalized_url_alternative': {
             'source':'walmart','url':'<Observed Walmart /ip/ URL>','parse':False},
         'store_selection_parameter_documented': True,
+        'classic_exact_store_selector_verified': False,
+        'geo_location_is_exact_store_selector': False,
         'returned_store_pickup_price_verified': False,
         'required_for_price_proof': [
             'actual provider job ID', 'actual returned source URL', 'original HTML',
