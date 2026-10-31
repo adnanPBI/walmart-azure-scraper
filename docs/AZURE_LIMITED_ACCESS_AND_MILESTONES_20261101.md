@@ -96,13 +96,13 @@ downloadable passwords.
 
 | Principal | Role and exact scope | Purpose / limitation |
 | --- | --- | --- |
-| Client Azure admin (client retains) | Subscription permissions to create a new RG; **Resource Group Contributor** or equivalent on that temporary RG; role-assignment privilege held **only by client admin** | Create/tear down scoped resources, assign identities. Does not transfer subscription rights |
+| Client Azure admin (client retains) | Subscription permissions to create a new RG; built-in **Contributor** role scoped ONLY to that temporary RG (or an equivalent narrower custom role); role-assignment privilege held **only by client admin** | Create/tear down scoped resources, assign identities. Does not transfer subscription rights |
 | Developer, *before Azure access is approved* | **Reader** on the dedicated RG, optional | Read-only proposed configuration and execution inventory; no job start or resource changes |
 | Developer/reviewer, if needed | **Storage Blob Data Reader** on `$STORAGE_ID/blobServices/default/containers/walmart72-evidence` | Inspect evidence in one specific container; not other customer data |
 | Developer/reviewer, if logs retained | **Log Analytics Reader** on exact test workspace | Inspect test logs; no broad Monitor privileges |
 | Client-operator for one approved manual execution | **Container Apps Jobs Operator** scoped to the exact job resource, temporarily granted; otherwise client operator starts it | Role permits read/start/stop AND logstream/exec, so grant carefully and revoke after test |
 | Client-operated build identity/user | **Container Registry Tasks Contributor** scoped to test ACR (for `az acr build`) | Allows quick builds; not necessary for developer if client builds |
-| Client-operated provisioner | **Container Apps Jobs Contributor** on test job, **ManagedEnvironments Contributor** on test environment; **Managed Identity Operator** on selected identity if required | Deployment only; narrower than subscription-wide Contributor |
+| Client-operated provisioner | **Container Apps Jobs Contributor** on test job, **Container Apps ManagedEnvironments Contributor** on test environment; **Managed Identity Operator** on selected identity if required | Deployment only; narrower than subscription-wide Contributor |
 | Runtime user-assigned managed identity | **AcrPull** scoped to the test ACR (for standard registry RBAC), **Storage Blob Data Contributor** on the **one Blob container** | Read the image + eventually write evidence. An ABAC-enabled registry may require the repository-reader role instead |
 | Client admin for RBAC grants | RBAC role-assignment permissions limited to temporary resources | Needed to assign roles; do not give broad role-assignment power to the developer |
 
