@@ -1,4 +1,4 @@
-WALMART AZURE SCRAPER v0.5.6 — AUTHORITATIVE GITHUB SOURCE, 2026-10-30
+WALMART AZURE SCRAPER v0.5.7 — AUTHORITATIVE GITHUB SOURCE, 2026-10-31
 Do NOT use an older ZIP or v0.5.3 request shape; use exact GitHub SHA + Actions.
 See README.md, CLIENT_HANDOFF_README.md and docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md.
 Windows PowerShell: py -3.12 -m venv .venv
@@ -6,6 +6,8 @@ Windows PowerShell: py -3.12 -m venv .venv
   Copy-Item config\stores.example.yaml config\stores.yaml
   .\.venv\Scripts\python.exe -m walmart_azure preflight
   .\.venv\Scripts\python.exe -m pytest -q
-Zero-request dry-run: python -m walmart_azure oxylabs-probe --store 3891 --product-id 10450114 --url https://www.walmart.com/ip/item/10450114 --max-requests 1 --max-retries 0 --max-seconds 90 --max-body-bytes 2000000 --output output/diagnostics/classic-dryrun.json
+Zero-request dry-run: python -m walmart_azure oxylabs-probe --store 3891 --product-id 10450114 --url https://www.walmart.com/ip/10450114 --max-requests 1 --max-retries 0 --max-seconds 90 --max-body-bytes 2000000 --output output/diagnostics/classic-dryrun.json
 The product ID and URL are nominated by the client for Great Value Whole Vitamin D Milk, Gallon; #3891 PICKUP availability/price are NOT independently verified. Proposed Classic payload uses source=walmart_product, product_id, store_id=3891, fulfillment_type=pickup, parse=false, render="".
 No paid Oxylabs calls, live retailer products, Azure jobs or schedules are approved.
+
+TIME LIMIT: --max-seconds=90 bounds provider/worker and pending staging, NOT caller wall-clock when the caller-owned final .supervisor.tmp filesystem rename blocks. After such overrun, the saved verdict is fail-closed before the command returns; pre-dispatch approval remains spent. See docs/V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md.

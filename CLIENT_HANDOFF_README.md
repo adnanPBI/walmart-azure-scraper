@@ -1,4 +1,4 @@
-# Walmart Azure Scraper v0.5.6 — client reproduction (2026-10-30)
+# Walmart Azure Scraper v0.5.7 — client reproduction (2026-10-31)
 
 The **exact GitHub commit SHA plus matching successful Actions run** supersede
 older ZIPs and outdated documents. All evidence is offline until separately
@@ -53,3 +53,18 @@ The code still needs Classic production collector integration, 500 genuine
 distinct products, all category/subcategory coverage, observed live recovery
 and Azure production tests. Historical unavailable items must remain retained
 even if a diagnostic requires one currently price-bearing item.
+
+## v0.5.7 timing clarification — not a hard command wall-clock limit
+
+`--max-seconds 90` bounds the provider/worker and fail-closed staging phases,
+not arbitrary blocking **synchronous** final filesystem I/O. The caller alone
+commits terminal success; a stalled `.supervisor.tmp` replacement can cause
+total command runtime to exceed 90 seconds. If its completion is after the
+phase deadline, the canonical receipt is synchronously restored to an
+unqualified failure **before** the caller returns. The pre-dispatch
+approval is still consumed. Expect fields
+`caller_return_hard_limited=false`, `deadline_scope`, and
+`terminal_commit_overran_deadline` in receipts.
+The exact 1.30-second pre-/post-replace fault injections are in
+`tests/test_release_v057.py`. See
+[the complete v0.5.7 timing contract](docs/V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md).

@@ -1,4 +1,4 @@
-# v0.5.6 Classic Oxylabs / Walmart #3891 PICKUP qualification
+# v0.5.7 Classic Oxylabs / Walmart #3891 PICKUP qualification
 
 **2026-10-30.** Source/offline QA only; **zero authorized or executed paid calls**,
 zero genuine products, no Azure execution. This replaces the older 2026-10-29
@@ -154,3 +154,22 @@ following the original 18:00 checkpoint. Live account testing requires an
 explicit new approval, not included here. Full live work remains separately
 estimated at 5–7 working days **after** connectivity and category coverage
 qualification, and that estimate is not a committed delivery date.
+
+
+## v0.5.7 revised time-limit contract (2026-10-31 Asia/Dhaka)
+
+**Do not describe the 90-second value as an unconditional command runtime cap.**
+It bounds provider transport, worker-side parsing/persistence, cleanup, and
+fail-closed background staging. The caller-owned final positive receipt
+commit is deliberately synchronous to prevent late daemon success. A stalled
+filesystem `.supervisor.tmp` rename can therefore extend **caller return**
+past `--max-seconds` (including the planned 90-second diagnostic). When
+that operation eventually returns after the deadline, both returned and
+saved verdicts are unqualified failures and reserved attempts stay spent.
+The implementation discloses `caller_return_hard_limited=false` and
+`terminal_commit_overran_deadline`; it never treats a locally blocked
+filesystem operation as a failed retailer response or reason for a retry.
+Exact 1.30-second injected before-/after-replace regressions:
+`python -m pytest -q tests/test_release_v057.py`.
+
+Details: [V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md](V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md).

@@ -399,6 +399,7 @@ def _commit_positive_receipt(out: Path, receipt: dict, deadline_at: float,
     cause a late background promotion. An over-deadline commit is synchronously
     superseded with a fail-closed receipt BEFORE returning failure.
     """
+    commit_started=time.monotonic()
     tmp=out.with_name(out.name+'.'+uuid.uuid4().hex+'.supervisor.tmp')
     replaced=False
     try:
@@ -416,6 +417,12 @@ def _commit_positive_receipt(out: Path, receipt: dict, deadline_at: float,
         os.replace(tmp,out)
         replaced=True
         if cancelled.is_set() or time.monotonic()>=deadline_at:
+            # The synchronous filesystem replace may itself run beyond the
+            # phase deadline. Report the overrun explicitly, and overwrite any
+            # momentarily published candidate with fail-closed saved evidence
+            # BEFORE returning failure. Never release the paid reservation.
+            receipt['terminal_commit_overran_deadline']=True
+            receipt['terminal_commit_elapsed_seconds']=round(time.monotonic()-commit_started,3)
             failure=deepcopy(receipt)
             _invalidate_timed_out_proof(failure)
             _synced_json(out,_incomplete_snapshot(failure))
@@ -449,12 +456,16 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
         if (_cancelled is not None and _cancelled.is_set()) or time.monotonic() >= deadline_at:
             raise RequestDeadlineExceeded('Whole-run deadline expired during '+stage)
     out = Path(output)
-    receipt = {'release':'0.5.6', 'provider':'Oxylabs Web Scraper API (Classic)',
+    receipt = {'release':'0.5.7', 'provider':'Oxylabs Web Scraper API (Classic)',
                'endpoint': ENDPOINT, 'selected_store':store.id, 'selected_zip':store.zipcode,
                'pickup_required':'PICKUP', 'store_selection_in_api_payload':'REQUESTS_3891_PICKUP_REQUIRES_RETURNED_PROOF',
                'source_contract':'walmart_product id+store_id+fulfillment_type; parse=false; render empty',
                'request_cap_total_including_retries':max_requests,
                'retry_cap_per_job':max_retries, 'deadline_seconds':max_seconds,
+               'deadline_scope':'PROVIDER_WORKER_AND_FAIL_CLOSED_STAGING',
+               'caller_return_hard_limited':False,
+               'final_receipt_io':'SYNCHRONOUS_SUPERVISOR_MAY_BLOCK_BEYOND_DEADLINE',
+               'terminal_commit_overran_deadline':False,
                'body_cap_bytes':max_body_bytes, 'render_requested':render,
                'paid_execution':bool(execute_billable), 'requests_sent':0,
                'jobs_planned':jobs, 'results':[], 'attempts':[],
@@ -639,10 +650,13 @@ def _run_probe_core(*, store: Store, url: str = DEFAULT_URL, product_id: str = '
 
 
 def run_probe(**kwargs) -> dict:
-    """Bounded two-phase worker/finalizer; expired watchdog does no file I/O.
+    """Phase-bounded worker/staging, with synchronous *unbounded* final I/O.
 
-    All unfinished saved receipts are unqualified. The fixed approval ledger
-    holds the authoritative, permanently consumed billed-attempt reservation.
+    max_seconds bounds the provider/worker and pending-receipt staging phases,
+    but is NOT an unconditional wall-clock bound on caller return. Only the
+    caller can publish a positive receipt; its final file I/O can block past
+    the deadline, then fails closed. This tradeoff avoids late daemon success.
+    The approval ledger permanently consumes each pre-dispatch reservation.
     """
     if not kwargs.get('execute_billable',False):
         return _run_probe_core(**kwargs)
@@ -651,13 +665,23 @@ def run_probe(**kwargs) -> dict:
     progress={'requests_sent':None,'authorization_ledger':''}
     state={}
 
-    def deadline_failure(note='Inspect the fixed approval ledger for reserved/uncertain attempts; no automatic retry.'):
-        return {'release':'0.5.6','status':'DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN',
+    def deadline_failure(note='Inspect the fixed approval ledger for reserved/uncertain attempts; no automatic retry.',
+                         *, terminal_commit_overran_deadline=False,
+                         terminal_commit_elapsed_seconds=None):
+        result={'release':'0.5.7','status':'DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN',
                 'deadline_exceeded':True,'source_shape_verified_records':0,
                 'genuine_products_verified':0,'buyer_acceptance':False,
                 'receipt_finalized':False,'requests_sent':progress['requests_sent'],
                 'authorization_ledger':progress['authorization_ledger'],
-                'receipt_path':kwargs.get('output',''),'note':note}
+                'receipt_path':kwargs.get('output',''),
+                'deadline_scope':'PROVIDER_WORKER_AND_FAIL_CLOSED_STAGING',
+                'caller_return_hard_limited':False,
+                'final_receipt_io':'SYNCHRONOUS_SUPERVISOR_MAY_BLOCK_BEYOND_DEADLINE',
+                'terminal_commit_overran_deadline':terminal_commit_overran_deadline,
+                'note':note}
+        if terminal_commit_elapsed_seconds is not None:
+            result['terminal_commit_elapsed_seconds']=terminal_commit_elapsed_seconds
+        return result
 
     def work():
         try:
@@ -716,7 +740,10 @@ def run_probe(**kwargs) -> dict:
     if not committed:
         cancelled.set()
         return deadline_failure(
-            'Positive commit missed deadline; final receipt left unqualified and allowance remains spent.')
+            'Synchronous terminal receipt I/O may extend caller runtime past max_seconds. '
+            'Commit missed phase deadline; saved verdict is unqualified and allowance spent.',
+            terminal_commit_overran_deadline=final.get('terminal_commit_overran_deadline',False),
+            terminal_commit_elapsed_seconds=final.get('terminal_commit_elapsed_seconds'))
     return final
 
 def review_saved_response(input_file: str, output_file: str, store: Store) -> dict:

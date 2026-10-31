@@ -1,3 +1,5 @@
+> Historical v0.5.6 evidence. The CURRENT v0.5.7 timing specification explicitly separates the bounded provider/worker/staging phases from potentially blocking caller-owned final filesystem operations: [V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md](V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md).
+
 # v0.5.6 — terminal replacement ownership and fault-injection QA
 
 **Date:** October 30, 2026 (Asia/Dhaka, UTC+06:00), after the original

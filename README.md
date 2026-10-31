@@ -1,4 +1,4 @@
-# Walmart Azure Scraper v0.5.6 — authoritative GitHub source (2026-10-30)
+# Walmart Azure Scraper v0.5.7 — authoritative GitHub source (2026-10-31)
 
 **Status:** Implementation and OFFLINE regression qualification only. No authorized or
 executed paid Classic Oxylabs requests, no genuine 500-product run, no verified
@@ -18,7 +18,7 @@ the source of truth, not the older v0.5.0 ZIP.
 - Complete volume/digital terms and clipping precedence; family/bulk/multipack
   source labels; no silent promotion-terms truncation.
 - Classic Oxylabs single-product dry-run and offline source qualification.
-  **v0.5.4–v0.5.6** changes the proposed request to the documented localized
+  **v0.5.4–v0.5.7** changes the proposed request to the documented localized
   `walmart_product` payload and uses the SAME strict source gate in the paid
   response path. Shipping/default-store prices cannot be labeled #3891 PICKUP.
 - A fixed durable approval ledger, 1-attempt pre-dispatch reservation, strict
@@ -50,7 +50,7 @@ offline test logs. These do NOT constitute observed retailer/paid/Azure tests.
 
 ## Classic single-product zero-cost diagnostic
 
-**v0.5.6 finalization fence:** ALL worker and daemon writes to the
+**v0.5.7 finalization fence:** ALL worker and daemon writes to the
 canonical receipt are fail-closed, with `PENDING` state, zero shape counts,
 `receipt_finalized=false` and no terminal timestamp. In particular, even
 a delayed `.terminal.tmp` `os.replace` can only replace the receipt with
@@ -61,7 +61,7 @@ pending/failed file; neither it nor a delayed daemon can turn that file
 positive afterward. Pre-dispatch paid reservations are never reclaimed.
 
 Client's exact before/after-`os.replace` injected pauses and the normal
-saved==returned positive control are covered by offline v0.5.6 regressions.
+saved==returned positive control are covered by offline v0.5.7 regressions.
 The normal OS filesystem commit is synchronous in the supervising caller;
 as with any synchronous filesystem call, an indefinitely blocked local OS
 write cannot itself be preempted by a Python watchdog. This tradeoff removes
@@ -100,12 +100,26 @@ transport. If any evidence is missing, do NOT set verification flags/counts.
 A compatible source-shape candidate still has `buyer_acceptance=false` and
 genuine records=0 until independent provider/client authentication.
 
-**Deadline:** 90 seconds by default (configured maximum 180), including
-response parsing, evidence writing and close. A slow phase returns a
-conservative `DEADLINE_STOP_RESERVED_OUTCOME_UNCERTAIN`; reserved attempts
-remain permanently spent. No automatic retry and no schedule.
+**Revised time-limit contract (v0.5.7):** `--max-seconds 90` is a
+**phase deadline** for the provider/network, source verification, receipt
+persistence in the worker, cleanup, and fail-closed `.terminal.tmp` staging.
+It is **NOT an unconditional upper bound on total command/caller runtime**.
+The caller-owned final `.supervisor.tmp` filesystem commit is synchronous and
+can block past 90 seconds if disk/OS I/O stalls. After such an overrun, the
+command fails closed and replaces any terminal-positive bytes with a pending
+unqualified receipt before returning. The fixed approval ledger retains its
+single permanently reserved possible paid attempt. This design prevents a
+late-positive background publication; it does not claim a hard wall-clock
+limit through arbitrary blocking OS writes. The receipt records
+`caller_return_hard_limited=false`, `deadline_scope`, and (on final
+commit overruns) `terminal_commit_overran_deadline=true` plus elapsed time.
+**No automatic retry and no schedule.**
 
-Read [complete v0.5.6 Classic request/response qualification and cost plan](docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md)
+Run `python -m pytest -q tests/test_release_v055.py tests/test_release_v056.py tests/test_release_v057.py`
+for the focused finalization regressions. Read
+[the v0.5.7 timing contract and fault injections](docs/V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md).
+
+Read [complete v0.5.7 Classic request/response qualification and cost plan](docs/CLASSIC_3891_PICKUP_QUALIFICATION_20261030.md)
 and [client handoff](CLIENT_HANDOFF_README.md).
 
 ## Outstanding acceptance gaps
@@ -119,6 +133,6 @@ observed live recovery, Azure deployment and twice-weekly scheduling are
 NOT qualified. A single priced diagnostic has NOT changed the unavailable-
 and-later-missing-item retention requirement.
 
-**Checkpoint:** The October 30, 2026 at 18:00 Asia/Dhaka (UTC+06:00) checkpoint has passed. v0.5.6 focuses on the subsequent verified source/CI correction. One-product Classic compatibility remains conditional on **separate client authorization** and account qualification; it is NOT a live-result guarantee. A live assessment requires separate buyer approval, privately managed
+**Checkpoint:** The October 30, 2026 at 18:00 Asia/Dhaka (UTC+06:00) checkpoint has passed. The v0.5.7 source/offline correction is dated October 31, 2026 (Asia/Dhaka); no live one-product qualification has been authorized or completed. One-product Classic compatibility remains conditional on **separate client authorization** and account qualification; it is NOT a live-result guarantee. A live assessment requires separate buyer approval, privately managed
 credentials and confirmation of provider/account compatibility. The client has nominated the product ID (10450114), but not store-3891 verified. Remaining live/production work was estimated at
 5–7 working days **after** connectivity and category coverage qualification.

@@ -200,7 +200,8 @@ def main() -> None:
     oxy.add_argument('--output', default='output/diagnostics/oxylabs-classic-review.json')
     oxy.add_argument('--max-requests', type=int, default=1)
     oxy.add_argument('--max-retries', type=int, default=0)
-    oxy.add_argument('--max-seconds', type=int, default=90)
+    oxy.add_argument('--max-seconds', type=int, default=90,
+                     help='Phase deadline for provider/worker and pending staging; synchronous final receipt I/O may exceed it')
     oxy.add_argument('--max-body-bytes', type=int, default=2000000)
     oxy.add_argument('--execute-billable', action='store_true')
     oxy.add_argument('--billing-approved', action='store_true')
@@ -307,6 +308,10 @@ def main() -> None:
                 max_retries=args.max_retries,max_seconds=args.max_seconds,
                 max_body_bytes=args.max_body_bytes)
             print(json.dumps({'status':result['status'],'network_requests_sent':result.get('requests_sent',0), 'uncertain_attempts_check_ledger':result.get('deadline_exceeded',False),
+                'deadline_seconds':result.get('deadline_seconds',args.max_seconds),
+                'deadline_scope':result.get('deadline_scope','PROVIDER_WORKER_AND_FAIL_CLOSED_STAGING'),
+                'caller_return_hard_limited':result.get('caller_return_hard_limited',False),
+                'terminal_commit_overran_deadline':result.get('terminal_commit_overran_deadline',False),
                 'buyer_acceptance':False, 'verified_products':result['genuine_products_verified'],
                 'receipt':args.output},indent=2))
             code = 0 if not args.execute_billable else (0 if result['status']=='STRICT_SOURCE_SHAPE_VERIFIED_NOT_ACCEPTANCE' else 2)
