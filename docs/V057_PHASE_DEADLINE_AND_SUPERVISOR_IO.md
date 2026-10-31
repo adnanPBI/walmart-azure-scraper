@@ -83,7 +83,12 @@ completion with `buyer_acceptance=false`, genuine product count zero.
 
 The v0.5.5/v0.5.6 tests for blocked intermediate saves, after-deadline
 reads, the `.terminal.tmp` pre/post swap and caller-only positive
-publication remain in place. GitHub CI runs the entire offline suite on
+publication remain in place.
+The old `.terminal.tmp` fault-injection uses a 3-second test deadline on
+CI to ensure slow runner startup reaches its specific intercepted rename;
+its cancellation/no-late-success semantics remain unchanged. The new
+`.supervisor.tmp` boundary regressions retain the client's exact
+`max_seconds=1` and 1.30-second delay. GitHub CI runs the entire offline suite on
 Linux Python 3.11/3.12 and Windows Python 3.12; only the Ubuntu jobs
 execute the isolated Chromium fixture.
 

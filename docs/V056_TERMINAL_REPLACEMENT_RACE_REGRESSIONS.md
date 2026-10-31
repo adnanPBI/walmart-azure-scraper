@@ -1,4 +1,4 @@
-> Historical v0.5.6 evidence. The CURRENT v0.5.7 timing specification explicitly separates the bounded provider/worker/staging phases from potentially blocking caller-owned final filesystem operations: [V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md](V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md).
+> Historical v0.5.6 evidence. **October 31 CI stability note:** the existing .terminal.tmp pre/post swap regression now uses a 3-second test deadline rather than 1 second so CI startup/scheduling jitter cannot expire its watchdog before reaching the deliberately injected rename seam. Its blocked-rename deadline failure and no-late-positive invariants are unchanged. The NEW v0.5.7 .supervisor.tmp regressions still exercise max_seconds=1 with a 1.30-second synchronous rename delay. The CURRENT v0.5.7 timing specification explicitly separates the bounded provider/worker/staging phases from potentially blocking caller-owned final filesystem operations: [V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md](V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md).
 
 # v0.5.6 — terminal replacement ownership and fault-injection QA
 

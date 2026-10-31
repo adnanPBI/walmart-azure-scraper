@@ -20,9 +20,12 @@ def test_terminal_rename_inflight_cannot_publish_late_success(
     """The exact client-reproduced .terminal.tmp os.replace race.
 
     Pause after the final cancellation check, either BEFORE the real rename
-    or AFTER it has happened but BEFORE os.replace returns. The watchdog
-    must return within ~1s; when the rename resumes, only fail-closed
-    PENDING state may ever appear at the canonical receipt path.
+    or AFTER it has happened but BEFORE os.replace returns. Use a 3s test
+    deadline to accommodate variable CI scheduling *before reaching the seam*.
+    Once the injected replacement is entered, the watchdog must expire while
+    it is blocked; when the rename resumes, only fail-closed PENDING state
+    may ever appear at the canonical receipt path. This does not change the
+    client-facing phase deadline or the separate 1s supervisor-overrun tests.
     """
     arrived=threading.Event()
     release=threading.Event()
@@ -49,11 +52,11 @@ def test_terminal_rename_inflight_cannot_publish_late_success(
     monkeypatch.setattr(classic.os,'replace',paused_replace)
     try:
         result,session,elapsed=invoke(
-            tmp_path,monkeypatch,variant=None,seconds=1)
+            tmp_path,monkeypatch,variant=None,seconds=3)
         assert arrived.is_set(), 'Exact terminal os.replace seam was not entered'
         assert len(hits)==1
         assert len(session.calls)==1, 'No additional paid attempt is permissible'
-        assert elapsed<1.25,elapsed
+        assert 2.8 <= elapsed < 3.6,elapsed
         assert result['status']==DEADLINE
         assert result['source_shape_verified_records']==0
         assert result['genuine_products_verified']==0
