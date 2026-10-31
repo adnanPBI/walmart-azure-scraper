@@ -65,6 +65,21 @@ creates/approves the RG. Dockerfile.classic and the manual job default to
 a **dry-run of product 10450114** with 0 provider requests. No credentials,
 `--execute-billable` or schedule are injected.
 
+**Caller return deadline:** the scraper's `--max-seconds=90` applies to
+provider/worker processing and fail-closed staging, **not** an unconditional
+command/caller wall-clock bound. A blocking synchronous terminal file commit
+can extend caller runtime beyond the phase deadline; after it completes the
+verdict fails closed and the pre-dispatch request remains reserved. This
+v0.5.7 contract has been credited by the client and is unchanged.
+
+**Paid production blocker:** the Classic approval ledger is file-backed and
+must remain **durable, single-writer, and shared across restarts/replicas**.
+Container Apps local `/tmp` is ephemeral. The dry-run container has no
+approved credentials and MUST NOT be promoted into billable or scheduled
+production merely by adding secrets. Full integration must provide an
+independently tested persistent shared ledger/lease transaction model before
+any paid Azure execution, plus source-bound storage proof and client approval.
+
 The default job's `/tmp` dry-run receipt is **ephemeral** and does
 **NOT** prove Blob upload, published product datasets, Log Analytics
 retention or Azure recovery. Those are separate full-acceptance gates.
