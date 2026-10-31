@@ -59,9 +59,20 @@ done
 python -m walmart_azure preflight --categories config/categories.csv --stores config/stores.yaml
 # It is unsafe to bake an operator's private/local store data into an image.
 # The baked public store profile must exactly match the reviewed deployment target.
-if ! cmp -s config/stores.yaml config/stores.azure.yaml; then
-  echo 'STOP: config/stores.yaml differs from public Azure image config/stores.azure.yaml' >&2
-  echo 'Synchronize non-secret public store details first; never bake browser cookies/session_state.' >&2
+# Compare effective YAML content, not byte-for-byte comment headers.
+# Never silently build a different store/limit configuration into the image.
+if ! python - <<'PY'
+from pathlib import Path
+import sys
+import yaml
+actual=yaml.safe_load(Path('config/stores.yaml').read_text(encoding='utf-8'))
+public=yaml.safe_load(Path('config/stores.azure.yaml').read_text(encoding='utf-8'))
+if actual != public:
+    sys.exit(1)
+PY
+then
+  echo 'STOP: effective config/stores.yaml differs from the reviewed public Azure image store config.' >&2
+  echo 'Reconcile effective store/limit values; never bake browser cookies/session state.' >&2
   exit 5
 fi
 

@@ -160,7 +160,9 @@ qualification, cost quote approval and resource creation authorization;
 it refuses a shared/untagged resource group, creates no new resource
 group, and defaults to a manual, zero-provider-request product-10450114
 dry run. It does **not** prove Azure Blob persistence or stored logs.
-A reviewer can inspect resources without deletion using
+The deployment script compares the effective parsed store YAML (values,
+not comment headers) with the reviewed image store YAML, rejecting real
+store/limit mismatch. A reviewer can inspect resources without deletion using
 `bash azure/teardown_preview.sh` after receiving read-only Azure access.
 
 **Next dated checkpoint:** Tuesday November 3, 2026, at 18:00 Asia/Dhaka

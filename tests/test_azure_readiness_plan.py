@@ -31,6 +31,8 @@ def test_azure_script_requires_qualified_source_and_three_approvals():
     assert 'rg-walmart72-' in s
     assert 'purpose=walmart72-temporary' in s
     assert 'az group create' not in s, 'Client must pre-create dedicated group'
+    assert 'yaml.safe_load' in s, 'Store configuration equality must ignore comments but not data differences'
+    assert 'cmp -s config/stores.yaml' not in s
     assert '--trigger-type Manual' in s or '--trigger-type "Manual"' in s or '--trigger-type' in s and 'Manual' in s
     assert '--replica-retry-limit 0' in s
     assert '--parallelism 1' in s
@@ -113,3 +115,11 @@ def test_unapproved_deployment_fails_before_any_azure_call():
     assert res.returncode==4
     assert 'STOP:' in res.stderr
     assert 'client authorization' in res.stderr
+
+
+def test_example_and_azure_store_configs_match_semantically():
+    import yaml
+    example=yaml.safe_load(read('config/stores.example.yaml'))
+    public=yaml.safe_load(read('config/stores.azure.yaml'))
+    assert example==public
+    assert read('config/stores.example.yaml')!=read('config/stores.azure.yaml')

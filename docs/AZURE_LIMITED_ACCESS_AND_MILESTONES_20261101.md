@@ -57,7 +57,10 @@ The existing **`azure/deploy.sh`** now requires: (a) source gate
 `AZ_SOURCE_PATH_QUALIFIED=YES`, (b) explicit quote approval
 `AZ_QUOTE_ACCEPTED=YES`, and (c) resource creation approval
 `AZ_AUTHORIZE_RESOURCE_CREATION=YES`. It refuses absent/mis-tagged/
-shared RGs; it **never creates the RG** itself. A qualified client admin
+shared RGs; it **never creates the RG** itself. It compares the parsed
+YAML content of `config/stores.yaml` against the bundled
+`config/stores.azure.yaml` so harmless comment differences do not fail,
+but real store, limit or extra-key differences are rejected. A qualified client admin
 creates/approves the RG. Dockerfile.classic and the manual job default to
 a **dry-run of product 10450114** with 0 provider requests. No credentials,
 `--execute-billable` or schedule are injected.
