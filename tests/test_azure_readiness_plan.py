@@ -86,7 +86,8 @@ def test_client_plan_explicit_about_scope_estimates_and_remaining_gates():
     assert 'azure/plan_client_review.sh' in s
 
 
-@pytest.mark.skipif(shutil.which('bash') is None, reason='Bash is optional on Windows local clients')
+@pytest.mark.skipif(os.name == 'nt' or shutil.which('bash') is None,
+                    reason='Run POSIX Bash scripts on Linux/WSL; Windows bash.exe may be WSL launcher')
 def test_print_only_plan_never_requires_az_or_approval(tmp_path):
     # Doesn't install, invoke, discover or even require Azure CLI.
     env=os.environ.copy()
@@ -102,7 +103,8 @@ def test_print_only_plan_never_requires_az_or_approval(tmp_path):
     assert 'walmart72-evidence' in res.stdout
 
 
-@pytest.mark.skipif(shutil.which('bash') is None, reason='Bash is optional on Windows local clients')
+@pytest.mark.skipif(os.name == 'nt' or shutil.which('bash') is None,
+                    reason='Run POSIX Bash scripts on Linux/WSL; Windows bash.exe may be WSL launcher')
 def test_unapproved_deployment_fails_before_any_azure_call():
     env=os.environ.copy()
     env.update(AZ_RESOURCE_GROUP='rg-walmart72-test',AZ_REGION='eastus2',
