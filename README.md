@@ -136,3 +136,35 @@ and-later-missing-item retention requirement.
 **Checkpoint:** The October 30, 2026 at 18:00 Asia/Dhaka (UTC+06:00) checkpoint has passed. The v0.5.7 source/offline correction is dated October 31, 2026 (Asia/Dhaka); no live one-product qualification has been authorized or completed. One-product Classic compatibility remains conditional on **separate client authorization** and account qualification; it is NOT a live-result guarantee. A live assessment requires separate buyer approval, privately managed
 credentials and confirmation of provider/account compatibility. The client has nominated the product ID (10450114), but not store-3891 verified. Remaining live/production work was estimated at
 5–7 working days **after** connectivity and category coverage qualification.
+
+
+## Azure access/cost plan (November 1, 2026)
+
+The v0.5.7 deadline correction is **credited by the client**; do not
+reopen it. Azure access remains a **separate, not-yet-approved** stage,
+following a usable Classic #3891 PICKUP source response.
+
+The [exact limited resource/role list, client-only creation plan, example
+CLI build/run/log/storage commands, provisional 72-hour cost estimate and
+bounded teardown](docs/AZURE_LIMITED_ACCESS_AND_MILESTONES_20261101.md)
+is included for client review.
+
+Safe, offline readout:
+
+```bash
+bash azure/plan_client_review.sh
+```
+
+The deployment script now additionally demands independent source
+qualification, cost quote approval and resource creation authorization;
+it refuses a shared/untagged resource group, creates no new resource
+group, and defaults to a manual, zero-provider-request product-10450114
+dry run. It does **not** prove Azure Blob persistence or stored logs.
+A reviewer can inspect resources without deletion using
+`bash azure/teardown_preview.sh` after receiving read-only Azure access.
+
+**Next dated checkpoint:** Tuesday November 3, 2026, at 18:00 Asia/Dhaka
+(06:00 US Central Standard Time): source and authorization status,
+reviewable code/CI, Azure preflight plan, and any grounded blocker.
+Live one-product, coverage, production integration and Azure acceptance
+remain independently gated and are not promised at this checkpoint.

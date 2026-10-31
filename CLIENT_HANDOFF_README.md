@@ -68,3 +68,20 @@ approval is still consumed. Expect fields
 The exact 1.30-second pre-/post-replace fault injections are in
 `tests/test_release_v057.py`. See
 [the complete v0.5.7 timing contract](docs/V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md).
+
+
+## November 1, 2026 — Azure limited-access quotation and teardown addendum
+
+The exact client-facing Azure resource, least-privilege RBAC, manual-only
+deploy/build/run/log commands, provisional cost assumptions and cleanup
+are in [docs/AZURE_LIMITED_ACCESS_AND_MILESTONES_20261101.md](docs/AZURE_LIMITED_ACCESS_AND_MILESTONES_20261101.md).
+The non-mutating preview is `bash azure/plan_client_review.sh`.
+
+Do **not** set any of the deployment approval gates yet: the client has
+confirmed the Classic source-entitlement and one-product paid-request
+decision are pending. `azure/deploy.sh` requires the qualified source
+path, a quoted Azure budget, written resource creation approval and an
+existing dedicated `rg-walmart72-*` test resource group with
+`purpose=walmart72-temporary`. The resulting manual job has no paid
+provider credentials, sends zero Oxylabs requests and cannot be mistaken
+for genuine 500-product or Blob-storage acceptance.

@@ -10,4 +10,4 @@ COPY config/categories.csv /opt/scraper/config/categories.csv
 COPY config/stores.azure.yaml /opt/scraper/config/stores.yaml
 USER 10001
 ENTRYPOINT ["walmart-crawl"]
-CMD ["oxylabs-probe", "--store", "3891", "--max-requests", "1", "--max-retries", "0", "--max-seconds", "90", "--categories", "/opt/scraper/config/categories.csv", "--stores", "/opt/scraper/config/stores.yaml", "--output", "/tmp/oxylabs-classic-dryrun.json"]
+CMD ["oxylabs-probe", "--store", "3891", "--product-id", "10450114", "--url", "https://www.walmart.com/ip/10450114", "--max-requests", "1", "--max-retries", "0", "--max-seconds", "90", "--max-body-bytes", "2000000", "--categories", "/opt/scraper/config/categories.csv", "--stores", "/opt/scraper/config/stores.yaml", "--output", "/tmp/oxylabs-classic-dryrun.json"]

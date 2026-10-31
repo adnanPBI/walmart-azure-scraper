@@ -113,6 +113,13 @@ jobs:
           assert data['buyer_acceptance'] is False
           print('Strict synthetic source gate executed; NO genuine product or API request')
           PY
+      - name: Azure read-only proposal syntax and no-network preview
+        shell: bash
+        run: |
+          bash -n azure/deploy.sh azure/inspect_existing.sh azure/plan_client_review.sh azure/teardown_preview.sh
+          bash azure/plan_client_review.sh > test-results/azure-limited-plan.txt
+          grep -q '0 AZURE REQUESTS' test-results/azure-limited-plan.txt
+          grep -q 'NOT AUTHORIZED TODAY' test-results/azure-limited-plan.txt
       - name: Build source distribution and wheel
         shell: bash
         run: python -m build --sdist --wheel --outdir dist

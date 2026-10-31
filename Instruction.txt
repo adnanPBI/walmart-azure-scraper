@@ -11,3 +11,11 @@ The product ID and URL are nominated by the client for Great Value Whole Vitamin
 No paid Oxylabs calls, live retailer products, Azure jobs or schedules are approved.
 
 TIME LIMIT: --max-seconds=90 bounds provider/worker and pending staging, NOT caller wall-clock when the caller-owned final .supervisor.tmp filesystem rename blocks. After such overrun, the saved verdict is fail-closed before the command returns; pre-dispatch approval remains spent. See docs/V057_PHASE_DEADLINE_AND_SUPERVISOR_IO.md.
+
+AZURE ACCESS PLAN 2026-11-01:
+  bash azure/plan_client_review.sh  # PRINT ONLY, NO AZURE CALLS
+  docs/AZURE_LIMITED_ACCESS_AND_MILESTONES_20261101.md
+  (Do not run azure/deploy.sh: Classic entitlement, source qualification, paid API approval and Azure quote/resource authorization are pending.)
+  After separate client provisioning, read-only Azure inventory:
+  AZ_RESOURCE_GROUP=rg-walmart72-review-202611 bash azure/teardown_preview.sh
+NEXT STATUS CHECKPOINT: 2026-11-03 18:00 Asia/Dhaka / 06:00 CST.

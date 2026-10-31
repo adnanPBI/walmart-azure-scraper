@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Manual-only, cost-gated Azure diagnostic deployment. No paid Oxylabs requests by default.
+# Manual-only, cost-gated Azure diagnostic deployment. Never enable paid Oxylabs calls.
 # Container default is dry-run only: no Oxylabs credentials, paid requests or schedules.
 # This Classic probe uses --max-requests for billable API calls; the prior
 # Playwright browser probe uses --max-http-requests for browser network calls.
@@ -15,13 +15,13 @@ AZ_JOB_NAME="${AZ_JOB_NAME:-walmart-pickup-crawler}"
 AZ_ENV_NAME="${AZ_ENV_NAME:-walmart-crawler-env}"
 AZ_IDENTITY_NAME="${AZ_IDENTITY_NAME:-walmart-crawler-id}"
 AZ_CONTAINER="${AZ_CONTAINER:-walmart-scraper}"
-AZ_SCHEDULE="${AZ_SCHEDULE:-0 5 * * 1,4}"  # Monday and Thursday at 05:00 UTC
 AZ_JOB_RUN_TIMEOUT_SECONDS="${AZ_JOB_RUN_TIMEOUT_SECONDS:-180}" # dry-run bounded diagnostic
 AZ_JOB_CPU="${AZ_JOB_CPU:-0.5}"
 AZ_JOB_MEMORY="${AZ_JOB_MEMORY:-1.0Gi}"
-# A client quote and positive consent must precede any billable resource creation.
-if [[ "${AZ_AUTHORIZE_RESOURCE_CREATION:-NO}" != "YES" || "${AZ_QUOTE_ACCEPTED:-NO}" != "YES" ]]; then
-  echo 'STOP: This is an infrastructure CREATION script. Obtain a client-approved resource/cost quote first.' >&2
+# Three separate gates: qualified source route, client cost quote, and deployment approval.
+# No paid retailer request or unattended scheduling can be authorized by this script.
+if [[ "${AZ_AUTHORIZE_RESOURCE_CREATION:-NO}" != "YES" || "${AZ_QUOTE_ACCEPTED:-NO}" != "YES" || "${AZ_SOURCE_PATH_QUALIFIED:-NO}" != "YES" ]]; then
+  echo 'STOP: need separate client authorization for source qualification, Azure quote and resource creation.' >&2
   echo 'For the minimal diagnostic, use azure/inspect_existing.sh (read-only) and an existing job if available.' >&2
   exit 4
 fi
@@ -31,6 +31,23 @@ if [[ "$AZ_AUTHORIZE_SCHEDULED_RUNS" == "YES" ]]; then
   echo 'STOP: schedule activation is not permitted in the diagnostic deployment script.' >&2
   exit 6
 fi
+# Restrict deployment to a dedicated client-preprovisioned, labelled test group.
+# An existing shared or production resource group is never an acceptable target.
+if [[ ! "$AZ_RESOURCE_GROUP" =~ ^rg-walmart72-[a-z0-9-]+$ ]]; then
+  echo 'STOP: AZ_RESOURCE_GROUP must be a dedicated rg-walmart72-* group, approved by client.' >&2
+  exit 8
+fi
+command -v az >/dev/null || { echo 'Azure CLI az required' >&2; exit 2; }
+if ! az group show --name "$AZ_RESOURCE_GROUP" --output none 2>/dev/null; then
+  echo 'STOP: client must pre-create a dedicated resource group; this script never creates one.' >&2
+  exit 8
+fi
+GROUP_PURPOSE="$(az group show --name "$AZ_RESOURCE_GROUP" --query 'tags.purpose' -o tsv)"
+if [[ "$GROUP_PURPOSE" != "walmart72-temporary" ]]; then
+  echo 'STOP: dedicated resource group must have purpose=walmart72-temporary tag.' >&2
+  exit 8
+fi
+
 TAG="${AZ_IMAGE_TAG:-$(date -u +%Y%m%d%H%M%S)}"
 
 for file in config/categories.csv config/stores.yaml; do
@@ -48,7 +65,6 @@ if ! cmp -s config/stores.yaml config/stores.azure.yaml; then
   exit 5
 fi
 
-command -v az >/dev/null || { echo 'Azure CLI az required' >&2; exit 2; }
 az account show --query '{subscription:id, tenant:tenantId}' -o json
 read -r -p 'Deploy into the displayed Azure subscription? Type DEPLOY: ' ANSWER
 [[ "$ANSWER" == "DEPLOY" ]] || exit 3
@@ -57,7 +73,6 @@ if az containerapp job show -g "$AZ_RESOURCE_GROUP" -n "$AZ_JOB_NAME" --output n
   echo 'STOP: existing Container Apps job found. No costed builds or changes attempted.' >&2
   exit 7
 fi
-az group create -n "$AZ_RESOURCE_GROUP" -l "$AZ_REGION" --output none
 if ! az storage account show -g "$AZ_RESOURCE_GROUP" -n "$AZ_STORAGE_ACCOUNT" --output none 2>/dev/null; then
   az storage account create -g "$AZ_RESOURCE_GROUP" -n "$AZ_STORAGE_ACCOUNT" -l "$AZ_REGION" \
     --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 --allow-blob-public-access false --output none
@@ -73,20 +88,22 @@ IDENTITY_PRINCIPAL="$(az identity show -g "$AZ_RESOURCE_GROUP" -n "$AZ_IDENTITY_
 IDENTITY_CLIENT="$(az identity show -g "$AZ_RESOURCE_GROUP" -n "$AZ_IDENTITY_NAME" --query clientId -o tsv)"
 ACR_ID="$(az acr show -g "$AZ_RESOURCE_GROUP" -n "$AZ_ACR_NAME" --query id -o tsv)"
 STORAGE_ID="$(az storage account show -g "$AZ_RESOURCE_GROUP" -n "$AZ_STORAGE_ACCOUNT" --query id -o tsv)"
-# Role assignments are idempotent for the principal, role and resource scope.
-for role_scope in "AcrPull|$ACR_ID" "Storage Blob Data Contributor|$STORAGE_ID"; do
+# The CLIENT operator needs Storage Blob Data Contributor on the target
+# account/container to create the private container using Entra login.
+az storage container create --account-name "$AZ_STORAGE_ACCOUNT" --name "$AZ_CONTAINER" \
+  --auth-mode login --output none
+CONTAINER_SCOPE="$STORAGE_ID/blobServices/default/containers/$AZ_CONTAINER"
+# Scope the runtime identity's blob data access to exactly ONE container.
+for role_scope in "AcrPull|$ACR_ID" "Storage Blob Data Contributor|$CONTAINER_SCOPE"; do
   role="${role_scope%%|*}"; scope="${role_scope#*|}"
   if [[ "$(az role assignment list --assignee "$IDENTITY_PRINCIPAL" --scope "$scope" --role "$role" --query 'length(@)' -o tsv)" == "0" ]]; then
     az role assignment create --assignee-object-id "$IDENTITY_PRINCIPAL" --assignee-principal-type ServicePrincipal \
       --role "$role" --scope "$scope" --output none
   fi
 done
-# Current Azure CLI operator must have Storage Blob Data Contributor in order to
-# create the container without passing a storage-account key into source code.
-az storage container create --account-name "$AZ_STORAGE_ACCOUNT" --name "$AZ_CONTAINER" \
-  --auth-mode login --output none
 if ! az containerapp env show -g "$AZ_RESOURCE_GROUP" -n "$AZ_ENV_NAME" --output none 2>/dev/null; then
-  az containerapp env create -g "$AZ_RESOURCE_GROUP" -n "$AZ_ENV_NAME" -l "$AZ_REGION" --output none
+  az containerapp env create -g "$AZ_RESOURCE_GROUP" -n "$AZ_ENV_NAME" -l "$AZ_REGION" \
+    --logs-destination none --output none
 fi
 IMAGE="${AZ_ACR_NAME}.azurecr.io/walmart-pickup-crawler:${TAG}"
 # Builds remotely in ACR, avoiding local Docker installation requirements.
@@ -104,7 +121,10 @@ else
     --parallelism 1 --replica-completion-count 1 --replica-retry-limit 0 \
     --replica-timeout "$AZ_JOB_RUN_TIMEOUT_SECONDS" --cpu "$AZ_JOB_CPU" --memory "$AZ_JOB_MEMORY" \
     --image "$IMAGE" \
-    --args "oxylabs-probe" "--store" "3891" "--max-requests" "1" "--max-retries" "0" "--max-seconds" "90" \
+    --args "oxylabs-probe" "--store" "3891" \
+           "--product-id" "10450114" "--url" "https://www.walmart.com/ip/10450114" \
+           "--max-requests" "1" "--max-retries" "0" "--max-seconds" "90" \
+           "--max-body-bytes" "2000000" \
            "--categories" "/opt/scraper/config/categories.csv" \
            "--stores" "/opt/scraper/config/stores.yaml" \
            "--output" "/tmp/oxylabs-classic-dryrun.json" \
@@ -115,7 +135,9 @@ else
                "WALMART_MIN_DELAY_SECONDS=1.5" "WALMART_MAX_DELAY_SECONDS=3.0" \
     --output none
 fi
-printf '\nDeployed job: %s\nImage: %s\nRequested UTC schedule: %s\nScheduled execution authorized: %s\n' "$AZ_JOB_NAME" "$IMAGE" "$AZ_SCHEDULE" "$AZ_AUTHORIZE_SCHEDULED_RUNS"
+printf '\nDeployed MANUAL DRY-RUN job: %s\nImage: %s\nScheduled execution authorized: %s\n' "$AZ_JOB_NAME" "$IMAGE" "$AZ_AUTHORIZE_SCHEDULED_RUNS"
+printf 'No Oxylabs credentials, paid execution, scheduled job or persistent Log Analytics are configured.\n'
+printf 'Diagnostic dry-run currently writes /tmp output inside the job, NOT proven Azure Blob persistence.\n'
 printf '\nStart the BOUNDED DIAGNOSTIC only after the client authorizes it:\n'
 printf 'az containerapp job start -g %s -n %s\n' "$AZ_RESOURCE_GROUP" "$AZ_JOB_NAME"
 printf 'az containerapp job execution list -g %s -n %s -o table\n' "$AZ_RESOURCE_GROUP" "$AZ_JOB_NAME"
