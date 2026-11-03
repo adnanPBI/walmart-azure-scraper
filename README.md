@@ -170,3 +170,11 @@ store/limit mismatch. A reviewer can inspect resources without deletion using
 reviewable code/CI, Azure preflight plan, and any grounded blocker.
 Live one-product, coverage, production integration and Azure acceptance
 remain independently gated and are not promised at this checkpoint.
+
+## November 3, 2026 — read-only Azure guest credential verification addendum
+
+The Azure guest and two named Key Vault read permissions have been configured by the client. The RND portable CLI is available, but the currently inspected guest session reports `LOGIN_REQUIRED`. Neither secret has been retrieved or denied; both named reads remain `NOT_ATTEMPTED` until the account owner completes private interactive Azure sign-in.
+
+Use `python scripts/azure_readonly_access.py --az-exe <portable az.cmd path>` **only after that attended login**. The checker issues no paid Oxylabs requests, only exact-name Key Vault Get operations and an Azure account context read; never lists secrets or prints credential values. The two outcomes are independent and redacted. Mock-only regressions protect the no-secret/no-vault-list boundary.
+
+On RND Windows Python 3.12, the full offline suite passed **199 tests with 3 skipped**; no Walmart collection, Classic billing, or Azure job occurred. See [Nov 3 client checkpoint and dated, conditional milestone gates](docs/CLIENT_CHECKPOINT_20261103.md).
